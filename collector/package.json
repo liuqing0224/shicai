@@ -1,0 +1,14 @@
+{
+  "name": "feishu-resume-collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "collect": "node src/collect.mjs",
+    "check": "node --check src/collect.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  }
+}

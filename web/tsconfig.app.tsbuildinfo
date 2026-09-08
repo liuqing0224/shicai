@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/candidatedrawer.tsx","./src/interviewplan.test.ts","./src/interviewplan.tsx","./src/jobprofiledetails.tsx","./src/api.test.ts","./src/api.ts","./src/interviewplanutils.ts","./src/main.tsx","./src/types.ts","./src/vite-env.d.ts","./src/workflow.test.ts","./src/workflow.ts"],"version":"6.0.3"}

@@ -1,0 +1,21 @@
+{
+  "name": "feishu-resume-evaluator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web",
+    "collector"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm run dev -w server\" \"npm run dev -w web\"",
+    "start": "npm run start -w server",
+    "build": "npm run build -w web",
+    "test": "npm run test -w server && npm run test -w web && npm run test -w collector",
+    "collect": "npm run collect -w collector --"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
