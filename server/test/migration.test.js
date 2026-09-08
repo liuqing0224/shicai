@@ -30,6 +30,15 @@ test('旧 jobs 表自动迁移岗位画像字段', () => {
   const candidateColumns = new Set(migrated.prepare('PRAGMA table_info(candidates)').all().map((column) => column.name));
   assert.ok(candidateColumns.has('interview_plan'));
   assert.ok(candidateColumns.has('interview_plan_created_at'));
+  assert.ok(candidateColumns.has('interview_transcript'));
+  assert.ok(candidateColumns.has('interview_evaluation'));
+  assert.ok(candidateColumns.has('interview_evaluation_created_at'));
+  assert.ok(candidateColumns.has('interview_evaluation_generation'));
+  assert.ok(candidateColumns.has('sync_status'));
+  assert.ok(candidateColumns.has('sync_target'));
+  assert.ok(candidateColumns.has('sync_remote_target_id'));
+  assert.ok(candidateColumns.has('sync_error'));
+  assert.ok(candidateColumns.has('sync_at'));
   migrated.close();
   fs.rmSync(directory, { recursive: true });
 });

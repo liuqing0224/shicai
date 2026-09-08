@@ -1,19 +1,15 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeft,
   BriefcaseBusiness,
-  Check,
   CheckCircle2,
   ChevronRight,
-  CirclePause,
   ClipboardList,
   FileSearch,
-  Filter,
   LoaderCircle,
   Menu,
   Plus,
   RefreshCw,
-  Search,
   Sparkles,
   TriangleAlert,
   UserRound,
@@ -22,13 +18,13 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from './api'
-import { CandidateDrawer } from './CandidateDrawer'
-import { JobProfileDetails } from './JobProfileDetails'
+import { CandidatesView } from './CandidatesView'
 import { candidatesForJob } from './workflow'
 import type { Candidate, CandidateStatus, CollectResult, Job } from './types'
 
-type View = 'overview' | 'jobs' | 'job-candidates'
+type View = 'overview' | 'jobs' | 'job-candidates' | 'job-profile' | 'candidate-detail'
 type Toast = { kind: 'success' | 'error'; text: string }
+const JobProfilePage = lazy(() => import('./JobProfilePage').then((module) => ({ default: module.JobProfilePage })))
 
 const statusMeta: Record<CandidateStatus, { label: string; className: string }> = {
   pending: { label: '待评估', className: 'status-neutral' },
@@ -39,6 +35,7 @@ const statusMeta: Record<CandidateStatus, { label: string; className: string }> 
   rejected: { label: '淘汰', className: 'status-rejected' },
   failed: { label: '评估失败', className: 'status-rejected' },
 }
+const CandidateDrawer = lazy(() => import('./CandidateDrawer').then((module) => ({ default: module.CandidateDrawer })))
 
 const normalizeCandidate = (candidate: Candidate): Candidate => ({
   ...candidate,
@@ -97,12 +94,18 @@ function App() {
 
   const openCandidate = async (candidate: Candidate) => {
     setSelectedCandidate(candidate)
+    setView('candidate-detail')
     try {
       setSelectedCandidate(normalizeCandidate(await api.candidate(candidate.id)))
     } catch {
       // The list payload still provides a useful fallback when detail fetch is unavailable.
     }
   }
+
+  const applyCandidateUpdate = useCallback((updated: Candidate) => {
+    setSelectedCandidate(updated)
+    setCandidates((items) => items.map((item) => item.id === updated.id ? updated : item))
+  }, [])
 
   const changeStatus = async (candidate: Candidate, status: CandidateStatus) => {
     const previous = candidate.status
@@ -112,7 +115,9 @@ function App() {
     }
     update(status)
     try {
-      await api.setCandidateStatus(candidate.id, status)
+      const updated = await api.setCandidateStatus(candidate.id, status)
+      setCandidates((items) => items.map((item) => item.id === updated.id ? updated : item))
+      setSelectedCandidate((item) => item?.id === updated.id ? updated : item)
       setToast({ kind: 'success', text: `${candidate.name} 已标记为${statusMeta[status].label}` })
     } catch (cause) {
       update(previous)
@@ -122,7 +127,8 @@ function App() {
 
   const go = (next: View) => {
     setView(next)
-    if (next !== 'job-candidates') setSelectedJobId('')
+    if (!['job-candidates', 'job-profile', 'candidate-detail'].includes(next)) setSelectedJobId('')
+    if (next !== 'candidate-detail') setSelectedCandidate(null)
     setMobileNav(false)
   }
 
@@ -133,18 +139,23 @@ function App() {
     setView('job-candidates')
   }
 
+  const openJobProfile = (jobId: string) => {
+    setSelectedJobId(jobId)
+    setView('job-profile')
+  }
+
   const selectedJob = jobs.find((job) => job.id === selectedJobId)
 
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark"><FileSearch size={20} /></div>
-          <div><strong>简历评估</strong><span>招聘工作台</span></div>
+          <div className="brand-mark"><img src="/brand/shicai-logo-32.png" width="32" height="32" alt="" /></div>
+          <div><strong>识才</strong><span>智能招聘工作台</span></div>
         </div>
         <nav className="nav-list" aria-label="主导航">
           <NavButton active={view === 'overview'} icon={<ClipboardList />} label="总览" onClick={() => go('overview')} />
-          <NavButton active={view === 'jobs' || view === 'job-candidates'} icon={<BriefcaseBusiness />} label="职位与 JD" onClick={() => go('jobs')} />
+          <NavButton active={view === 'jobs' || view === 'job-candidates' || view === 'job-profile' || view === 'candidate-detail'} icon={<BriefcaseBusiness />} label="职位与 JD" onClick={() => go('jobs')} />
         </nav>
         <div className="sidebar-foot"><span className={`health-dot ${error ? 'offline' : ''}`} />{error ? '服务未连接' : '服务运行中'}</div>
       </aside>
@@ -153,7 +164,7 @@ function App() {
       <main className="main">
         <header className="topbar">
           <button className="icon-button mobile-menu" title="菜单" onClick={() => setMobileNav(true)}><Menu size={20} /></button>
-          {view === 'job-candidates' ? <div className="context-title"><button className="context-back" title="返回职位列表" onClick={() => go('jobs')}><ArrowLeft size={18} /></button><div><p className="eyebrow">职位候选人</p><h1>{selectedJob?.name || '职位候选人'}</h1></div></div> : <div><p className="eyebrow">{view === 'overview' ? '工作台' : '人才需求'}</p><h1>{view === 'overview' ? '招聘总览' : '职位与 JD'}</h1></div>}
+          {['job-candidates', 'job-profile', 'candidate-detail'].includes(view) ? <div className="context-title"><button className="context-back" title={view === 'candidate-detail' ? '返回候选人列表' : '返回职位列表'} onClick={() => go(view === 'candidate-detail' ? 'job-candidates' : 'jobs')}><ArrowLeft size={18} /></button><div><p className="eyebrow">{view === 'job-profile' ? '岗位画像' : view === 'candidate-detail' ? '候选人详情' : '职位候选人'}</p><h1>{view === 'candidate-detail' ? selectedCandidate?.name || '候选人详情' : selectedJob?.name || (view === 'job-profile' ? '岗位画像' : '职位候选人')}</h1></div></div> : <div><p className="eyebrow">{view === 'overview' ? '工作台' : '人才需求'}</p><h1>{view === 'overview' ? '招聘总览' : '职位与 JD'}</h1></div>}
           <div className="top-actions">
             <button className="icon-button" title="刷新数据" disabled={refreshing} onClick={() => void loadData(true)}><RefreshCw className={refreshing ? 'spin' : ''} size={18} /></button>
             {view === 'jobs' && <button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={17} />新建职位</button>}
@@ -164,15 +175,18 @@ function App() {
           <>
             {error && <div className="inline-warning"><TriangleAlert size={17} />数据刷新失败，当前显示上次结果：{error}</div>}
             {view === 'overview' && <Overview jobs={jobs} candidates={candidates} onViewJobs={() => go('jobs')} />}
-            {view === 'jobs' && <JobsView jobs={jobs} candidates={candidates} onCreate={() => setCreateOpen(true)} onOpenCandidates={openJobCandidates} onCollectSuccess={(result) => { setToast({ kind: 'success', text: collectMessage(result) }); void loadData(true) }} />}
-            {view === 'job-candidates' && selectedJob && <CandidatesView candidates={filteredCandidates} job={selectedJob} statusFilter={statusFilter} search={search} onBack={() => go('jobs')} onStatusFilter={setStatusFilter} onSearch={setSearch} onOpen={(candidate) => void openCandidate(candidate)} onStatus={changeStatus} />}
+            {view === 'jobs' && <JobsView jobs={jobs} candidates={candidates} onCreate={() => setCreateOpen(true)} onOpenCandidates={openJobCandidates} onOpenProfile={openJobProfile} onCollectSuccess={(result) => { setToast({ kind: 'success', text: collectMessage(result) }); void loadData(true) }} />}
+            {view === 'job-profile' && selectedJob && <Suspense fallback={<PageLoading />}><JobProfilePage job={selectedJob} onBack={() => go('jobs')} /></Suspense>}
+            {view === 'job-profile' && !selectedJob && <EmptyPage icon={<BriefcaseBusiness />} title="职位不存在" text="该职位可能已被删除，请返回职位列表重新选择。" action="返回职位列表" onAction={() => go('jobs')} />}
+            {view === 'job-candidates' && selectedJob && <CandidatesView candidates={filteredCandidates} job={selectedJob} statusFilter={statusFilter} search={search} onBack={() => go('jobs')} onStatusFilter={setStatusFilter} onSearch={setSearch} onOpen={(candidate) => void openCandidate(candidate)} onStatus={changeStatus} onSyncComplete={() => void loadData(true)} onSyncError={(text) => setToast({ kind: 'error', text })} />}
             {view === 'job-candidates' && !selectedJob && <EmptyPage icon={<BriefcaseBusiness />} title="职位不存在" text="该职位可能已被删除，请返回职位列表重新选择。" action="返回职位列表" onAction={() => go('jobs')} />}
+            {view === 'candidate-detail' && selectedCandidate && <Suspense fallback={<PageLoading />}><CandidateDrawer candidate={selectedCandidate} job={selectedJob} onClose={() => go('job-candidates')} onStatus={changeStatus} onSyncUpdated={applyCandidateUpdate} /></Suspense>}
+            {view === 'candidate-detail' && !selectedCandidate && <EmptyPage icon={<UserRound />} title="候选人不存在" text="请返回该职位的候选人列表重新选择。" action="返回候选人列表" onAction={() => go('job-candidates')} />}
           </>
         )}
       </main>
 
       {createOpen && <CreateJobModal onClose={() => setCreateOpen(false)} onCreated={(job) => { setJobs((items) => [job, ...items]); setCreateOpen(false); setToast({ kind: 'success', text: `职位“${job.name}”已创建` }) }} />}
-      {selectedCandidate && <CandidateDrawer candidate={selectedCandidate} job={jobs.find((job) => job.id === selectedCandidate.jobId)} onClose={() => setSelectedCandidate(null)} onStatus={changeStatus} />}
       {toast && <div className={`toast toast-${toast.kind}`}>{toast.kind === 'success' ? <CheckCircle2 size={18} /> : <TriangleAlert size={18} />}{toast.text}</div>}
     </div>
   )
@@ -194,7 +208,7 @@ function Overview({ jobs, candidates, onViewJobs }: { jobs: Job[]; candidates: C
       <Metric label="开放职位" value={jobs.length} hint="正在招聘" icon={<BriefcaseBusiness />} tone="ink" />
       <Metric label="候选人" value={candidates.length} hint={`${pending} 人待处理`} icon={<UsersRound />} tone="blue" />
       <Metric label="已完成评估" value={reviewed} hint={candidates.length ? `${Math.round(reviewed / candidates.length * 100)}% 完成率` : '暂无评估'} icon={<CheckCircle2 />} tone="green" />
-      <Metric label="平均匹配分" value={average || '—'} hint={`${passed} 人已通过`} icon={<Sparkles />} tone="amber" />
+      <Metric label="平均匹配分" value={average || '-'} hint={`${passed} 人已通过`} icon={<Sparkles />} tone="amber" />
     </section>
     <section className="overview-grid">
       <div className="panel wide-panel">
@@ -213,9 +227,8 @@ function Metric({ label, value, hint, icon, tone }: { label: string; value: numb
   return <div className="metric"><div className={`metric-icon tone-${tone}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{hint}</small></div></div>
 }
 
-function JobsView({ jobs, candidates, onCreate, onOpenCandidates, onCollectSuccess }: { jobs: Job[]; candidates: Candidate[]; onCreate: () => void; onOpenCandidates: (jobId: string) => void; onCollectSuccess: (result: CollectResult) => void }) {
+function JobsView({ jobs, candidates, onCreate, onOpenCandidates, onOpenProfile, onCollectSuccess }: { jobs: Job[]; candidates: Candidate[]; onCreate: () => void; onOpenCandidates: (jobId: string) => void; onOpenProfile: (jobId: string) => void; onCollectSuccess: (result: CollectResult) => void }) {
   const [collecting, setCollecting] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
   const collect = async (job: Job) => {
     setCollecting(job.id)
     try { onCollectSuccess(await api.collect(job.id)) }
@@ -230,23 +243,10 @@ function JobsView({ jobs, candidates, onCreate, onOpenCandidates, onCollectSucce
       <div className="job-card-head"><div className="job-icon"><BriefcaseBusiness size={20} /></div><span className={`job-state ${job.status === 'paused' ? 'paused' : ''}`}>{job.status === 'paused' ? '已暂停' : '招聘中'}</span></div>
       <h3>{job.name}</h3><p className="department">{job.department || '未设置部门'}</p>
       <div className="job-stats"><div><strong>{related.length}</strong><span>候选人</span></div><div><strong>{done}</strong><span>已评估</span></div><div><strong>{related.filter((item) => item.status === 'passed').length}</strong><span>已通过</span></div></div>
-      <button className="jd-toggle" onClick={() => setExpanded(expanded === job.id ? null : job.id)}>岗位画像 <ChevronRight className={expanded === job.id ? 'rotate' : ''} size={16} /></button>
-      {expanded === job.id && <JobProfileDetails job={job} />}
+      <button className="jd-toggle" onClick={() => onOpenProfile(job.id)}>岗位画像 <ChevronRight size={16} /></button>
       <div className="job-actions"><button className="candidate-button" onClick={() => onOpenCandidates(job.id)}><UsersRound size={17} />查看候选人<ChevronRight size={16} /></button><button className="collect-button" disabled={collecting === job.id || job.status === 'paused'} onClick={() => void collect(job)}>{collecting === job.id ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}{collecting === job.id ? '正在采集…' : '启动飞书采集'}</button></div>
     </article>
   })}</div></div>
-}
-
-function CandidatesView(props: { candidates: Candidate[]; job: Job; statusFilter: string; search: string; onBack: () => void; onStatusFilter: (value: string) => void; onSearch: (value: string) => void; onOpen: (candidate: Candidate) => void; onStatus: (candidate: Candidate, status: CandidateStatus) => void }) {
-  return <div className="page-content">
-    <div className="candidate-context"><button className="text-button" onClick={props.onBack}><ArrowLeft size={16} />返回职位列表</button><span>{props.job.department || '未设置部门'} · {props.candidates.length} 位候选人</span></div>
-    <div className="filters"><div className="search-field"><Search size={17} /><input value={props.search} onChange={(event) => props.onSearch(event.target.value)} placeholder="搜索姓名、公司或当前职位" /></div><div className="select-wrap"><Filter size={16} /><select value={props.statusFilter} onChange={(event) => props.onStatusFilter(event.target.value)}><option value="">全部状态</option>{Object.entries(statusMeta).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}</select></div></div>
-    <div className="table-panel"><div className="table-meta"><span>{props.job.name} · 共 {props.candidates.length} 位候选人</span></div>{props.candidates.length ? <div className="table-scroll"><table><thead><tr><th>候选人</th><th>应聘职位</th><th>匹配度</th><th>AI 建议</th><th>人工状态</th><th>最近更新</th><th className="actions-head">操作</th></tr></thead><tbody>{props.candidates.map((candidate) => <CandidateRow key={candidate.id} candidate={candidate} job={props.job} onOpen={props.onOpen} onStatus={props.onStatus} />)}</tbody></table></div> : <EmptyMini text="该职位下没有符合当前筛选条件的候选人" />}</div>
-  </div>
-}
-
-function CandidateRow({ candidate, job, onOpen, onStatus }: { candidate: Candidate; job?: Job; onOpen: (candidate: Candidate) => void; onStatus: (candidate: Candidate, status: CandidateStatus) => void }) {
-  return <tr><td><button className="candidate-cell" onClick={() => onOpen(candidate)}><Avatar name={candidate.name} /><span><strong>{candidate.name}</strong><small>{candidate.currentCompany || candidate.currentTitle || candidate.source || '飞书招聘'}</small></span></button></td><td>{candidate.jobName || job?.name || '—'}</td><td><Score score={candidate.score} level={candidate.level} /></td><td><Recommendation value={candidate.recommendation} /></td><td><Status status={candidate.status} /></td><td className="muted">{formatDate(candidate.updatedAt)}</td><td><div className="row-actions"><button title="通过" className={candidate.status === 'passed' ? 'chosen pass' : ''} onClick={() => onStatus(candidate, 'passed')}><Check size={16} /></button><button title="待定" className={candidate.status === 'hold' ? 'chosen hold' : ''} onClick={() => onStatus(candidate, 'hold')}><CirclePause size={16} /></button><button title="淘汰" className={candidate.status === 'rejected' ? 'chosen reject' : ''} onClick={() => onStatus(candidate, 'rejected')}><X size={16} /></button><button title="查看详情" onClick={() => onOpen(candidate)}><ChevronRight size={17} /></button></div></td></tr>
 }
 
 function CreateJobModal({ onClose, onCreated }: { onClose: () => void; onCreated: (job: Job) => void }) {
@@ -268,17 +268,11 @@ function CreateJobModal({ onClose, onCreated }: { onClose: () => void; onCreated
 
 function Avatar({ name, large = false }: { name: string; large?: boolean }) { return <span className={`avatar ${large ? 'large' : ''}`}>{name?.trim().slice(0, 1) || <UserRound size={16} />}</span> }
 function Status({ status }: { status: CandidateStatus }) { const meta = statusMeta[status] || statusMeta.pending; return <span className={`status ${meta.className}`}>{status === 'processing' && <i />}{meta.label}</span> }
-function Recommendation({ value }: { value?: Candidate['recommendation'] }) {
-  if (!value) return null
-  const labels = { strong_yes: '建议通过', yes: '建议通过', hold: '建议待定', no: '建议淘汰' }
-  return <span className={`recommendation recommendation-${value}`}><Sparkles size={11} />{labels[value]}</span>
-}
-function Score({ score, level }: { score?: number | null; level?: string | null }) { if (typeof score !== 'number') return <span className="score-empty">—</span>; return <span className={`score ${score >= 80 ? 'score-high' : score >= 60 ? 'score-mid' : 'score-low'}`}><b>{score}</b>{level && <small>{level}</small>}</span> }
-function PageLoading() { return <div className="state-page"><LoaderCircle className="spin" size={28} /><p>正在载入工作台…</p></div> }
+function Score({ score, level }: { score?: number | null; level?: string | null }) { if (typeof score !== 'number') return <span className="score-empty">-</span>; return <span className={`score ${score >= 80 ? 'score-high' : score >= 60 ? 'score-mid' : 'score-low'}`}><b>{score}</b>{level && <small>{level}</small>}</span> }
+function PageLoading() { return <div className="page-loading" aria-label="正在载入工作台"><div className="skeleton-title" /><div className="skeleton-metrics">{[0, 1, 2, 3].map((item) => <i key={item} />)}</div><div className="skeleton-panels"><i /><i /></div></div> }
 function ErrorState({ message, retry }: { message: string; retry: () => void }) { return <div className="state-page"><div className="state-icon error"><XCircle size={28} /></div><h2>暂时无法读取数据</h2><p>{message}</p><button className="primary-button" onClick={retry}><RefreshCw size={17} />重新连接</button></div> }
 function EmptyPage({ icon, title, text, action, onAction }: { icon: React.ReactNode; title: string; text: string; action: string; onAction: () => void }) { return <div className="state-page"><div className="state-icon">{icon}</div><h2>{title}</h2><p>{text}</p><button className="primary-button" onClick={onAction}><Plus size={17} />{action}</button></div> }
 function EmptyMini({ text }: { text: string }) { return <div className="empty-mini"><FileSearch size={22} /><span>{text}</span></div> }
-function formatDate(value?: string) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date) }
 function collectMessage(result: CollectResult) { if (result.message) return result.message; return `采集完成：导入 ${result.imported ?? 0} 人，进入评估 ${result.queued ?? result.imported ?? 0} 人${result.skipped ? `，跳过 ${result.skipped} 人` : ''}` }
 
 export default App

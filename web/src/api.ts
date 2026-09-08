@@ -1,4 +1,4 @@
-import type { Candidate, CandidateStatus, CollectResult, Job } from './types'
+import type { Candidate, CandidateStatus, CollectResult, DecisionSyncResult, Job } from './types'
 
 type RawCandidate = Omit<Partial<Candidate>, 'id' | 'status'> & { id: string | number; positionId?: string | number; status?: string; grade?: string; report?: Partial<Candidate> }
 const statusAliases: Record<string, CandidateStatus> = { evaluating: 'processing', evaluated: 'reviewed', shortlisted: 'passed' }
@@ -52,10 +52,23 @@ export const api = {
     return normalizeCandidatePayload('data' in result ? result.data : result)
   },
   async setCandidateStatus(id: string, status: CandidateStatus) {
-    return request(`/candidates/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+    const result = await request<RawCandidate | { data: RawCandidate }>(`/candidates/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
+    return normalizeCandidatePayload('data' in result ? result.data : result)
   },
   async collect(jobId: string) {
     const result = await request<CollectResult | { data: CollectResult }>(`/jobs/${jobId}/collect`, { method: 'POST' })
     return 'data' in result ? result.data : result
+  },
+  async retryCandidateSync(id: string) {
+    const result = await request<RawCandidate | { data: RawCandidate } | { result: string; candidate: RawCandidate }>(`/candidates/${id}/sync`, { method: 'POST' })
+    if ('candidate' in result) return normalizeCandidatePayload(result.candidate)
+    return normalizeCandidatePayload('data' in result ? result.data : result)
+  },
+  async syncDecisions(jobId: string) {
+    const result = await request<DecisionSyncResult | { data: DecisionSyncResult }>(`/jobs/${jobId}/sync-decisions`, { method: 'POST' })
+    return 'data' in result ? result.data : result
+  },
+  async generateInterviewEvaluation(id: string, transcript: string) {
+    return request<{ queued: 0 | 1 }>(`/candidates/${id}/interview-evaluation`, { method: 'POST', body: JSON.stringify({ transcript, force: true }) })
   },
 }

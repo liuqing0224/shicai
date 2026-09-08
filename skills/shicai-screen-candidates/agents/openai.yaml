@@ -1,0 +1,4 @@
+interface:
+  display_name: "识才·候选人筛选"
+  short_description: "Run JD profiling, collection, and evidence screening"
+  default_prompt: "Use $shicai-screen-candidates to collect and evaluate candidates for a current job."

@@ -65,3 +65,35 @@ npm run collect -- \
 ## 自动运行建议
 
 定时运行前先用同一 `--profile-dir` 人工完成登录。自动化任务应设置合理的超时和 `--limit`，并保存 `run-result.json`；不要把浏览器资料目录或候选人缓存提交到版本库。
+
+## 人工决策同步
+
+在飞书开放平台为当前应用启用 Bot 能力，申请并发布以下权限：
+
+- `hire:application`：读取投递、转移阶段、终止投递。
+- `hire:job.composite_info:readonly`：读取职位详情与招聘流程 ID。
+- `hire:job_process:readonly`：读取招聘流程及官方阶段列表。
+
+权限开通后需发布应用版本，并确保应用的飞书招聘数据范围覆盖目标职位。`--as bot` 缺权限时不要执行用户授权登录；使用 `syncError.consoleUrl` 前往开发者后台，并核对 `missingScopes`。
+
+只有人工状态 `passed` 和 `rejected` 会入队。`passed` 先读取投递、职位详情和招聘流程，只使用官方 `stage_list` 中当前阶段之后的第一个阶段，不猜测 `stage_id`。`rejected` 以 `termination_type: 1` 和原因“简历评估未通过”终止投递。AI 建议和其他本地状态不发写请求。
+
+手动重试单人：
+
+```bash
+curl -X POST http://127.0.0.1:8897/api/candidates/<candidate-id>/sync
+```
+
+按职位批量重试当前为通过/淘汰的候选人：
+
+```bash
+curl -X POST http://127.0.0.1:8897/api/jobs/<job-id>/sync-decisions
+```
+
+返回的 `queued` 是本次已提交数，`skipped` 是已同步同一目标或已在队列的数量。候选人详情中的 `syncStatus / syncTarget / syncError / syncAt` 表示最终结果。只在需要忽略本地已同步标记时传 `{ "force": true }`。飞书写入失败不会回滚本地人工决策。
+
+## 真实端到端验收
+
+真实 Agent 验收应使用临时数据库和虚拟 JD、简历、面试记录，并注入拒绝执行的飞书写入客户端。浏览器可以加载当前工作台，但测试请求必须定向到隔离 API；结束后删除临时数据，不在正式候选人库留下记录。
+
+`AGENT_TIMEOUT_MINUTES` 使用分钟；通过 `createApp({ timeoutMs })` 注入时使用毫秒。面试评价 Agent 输出的覆盖率和加权分不作为可信数据，服务端会根据与岗位画像对齐的逐维状态和分数统一重算。

@@ -1,0 +1,4 @@
+interface:
+  display_name: "识才·飞书决策同步"
+  short_description: "安全同步并恢复飞书招聘人工筛选决策"
+  default_prompt: "Use $shicai-feishu-decision-sync to safely reconcile a confirmed batch of local screening decisions with Feishu Recruitment."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "识才·循证面试"
+  short_description: "Design and evaluate evidence-based interviews"
+  default_prompt: "Use $shicai-interview-evidence to prepare or evaluate a structured interview."

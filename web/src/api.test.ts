@@ -18,4 +18,33 @@ describe('normalizeCandidatePayload', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/candidates?positionId=job-7&status=reviewed', expect.any(Object))
   })
+
+  it('calls candidate retry and job decision sync endpoints', async () => {
+    const candidate = { id: 8, name: '林一', positionId: 3, status: 'passed', syncStatus: 'synced' }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ result: 'synced', candidate }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ candidates: 4, queued: 3, skipped: 1 }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await api.retryCandidateSync('8')).toMatchObject({ id: '8', jobId: '3', syncStatus: 'synced' })
+    expect(await api.syncDecisions('3')).toEqual({ candidates: 4, queued: 3, skipped: 1 })
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/candidates/8/sync', expect.objectContaining({ method: 'POST' }))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/jobs/3/sync-decisions', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('normalizes the updated candidate returned after a manual decision', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 9, name: '周宁', positionId: 3, status: 'shortlisted', syncStatus: 'pending' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await api.setCandidateStatus('9', 'passed')).toMatchObject({ id: '9', jobId: '3', status: 'passed', syncStatus: 'pending' })
+    expect(fetchMock).toHaveBeenCalledWith('/api/candidates/9/status', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ status: 'passed' }) }))
+  })
+
+  it('queues an interview evaluation without changing the manual decision', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ queued: 1 }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await api.generateInterviewEvaluation('9', '面试官：请介绍项目。')).toEqual({ queued: 1 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/candidates/9/interview-evaluation', expect.objectContaining({ method: 'POST', body: JSON.stringify({ transcript: '面试官：请介绍项目。', force: true }) }))
+  })
 })

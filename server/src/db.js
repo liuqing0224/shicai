@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS candidates (
   report TEXT,
   interview_plan TEXT,
   interview_plan_created_at TEXT,
+  interview_transcript TEXT,
+  interview_evaluation TEXT,
+  interview_evaluation_created_at TEXT,
+  interview_evaluation_generation INTEGER NOT NULL DEFAULT 0,
+  sync_status TEXT NOT NULL DEFAULT 'idle',
+  sync_target TEXT,
+  sync_remote_target_id TEXT,
+  sync_error TEXT,
+  sync_at TEXT,
   error TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -71,6 +80,15 @@ export function createDatabase(filename) {
   const candidateColumns = new Set(db.prepare('PRAGMA table_info(candidates)').all().map((column) => column.name));
   if (!candidateColumns.has('interview_plan')) db.exec('ALTER TABLE candidates ADD COLUMN interview_plan TEXT');
   if (!candidateColumns.has('interview_plan_created_at')) db.exec('ALTER TABLE candidates ADD COLUMN interview_plan_created_at TEXT');
+  if (!candidateColumns.has('interview_transcript')) db.exec('ALTER TABLE candidates ADD COLUMN interview_transcript TEXT');
+  if (!candidateColumns.has('interview_evaluation')) db.exec('ALTER TABLE candidates ADD COLUMN interview_evaluation TEXT');
+  if (!candidateColumns.has('interview_evaluation_created_at')) db.exec('ALTER TABLE candidates ADD COLUMN interview_evaluation_created_at TEXT');
+  if (!candidateColumns.has('interview_evaluation_generation')) db.exec('ALTER TABLE candidates ADD COLUMN interview_evaluation_generation INTEGER NOT NULL DEFAULT 0');
+  if (!candidateColumns.has('sync_status')) db.exec("ALTER TABLE candidates ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'idle'");
+  if (!candidateColumns.has('sync_target')) db.exec('ALTER TABLE candidates ADD COLUMN sync_target TEXT');
+  if (!candidateColumns.has('sync_remote_target_id')) db.exec('ALTER TABLE candidates ADD COLUMN sync_remote_target_id TEXT');
+  if (!candidateColumns.has('sync_error')) db.exec('ALTER TABLE candidates ADD COLUMN sync_error TEXT');
+  if (!candidateColumns.has('sync_at')) db.exec('ALTER TABLE candidates ADD COLUMN sync_at TEXT');
   return db;
 }
 
@@ -108,6 +126,11 @@ export function mapCandidate(row) {
     strengths: report?.strengths ?? [], risks: report?.risks ?? [], gaps: report?.gaps ?? [],
     interviewQuestions: report?.interviewQuestions ?? [],
     interviewPlan: parseJson(row.interview_plan), interviewPlanCreatedAt: row.interview_plan_created_at ?? null,
+    interviewTranscript: row.interview_transcript ?? null,
+    interviewEvaluation: parseJson(row.interview_evaluation),
+    interviewEvaluationCreatedAt: row.interview_evaluation_created_at ?? null,
+    syncStatus: row.sync_status ?? 'idle', syncTarget: row.sync_target ?? null,
+    syncError: parseJson(row.sync_error), syncAt: row.sync_at ?? null,
     error: row.error, createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }

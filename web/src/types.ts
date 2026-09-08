@@ -1,5 +1,13 @@
 export type CandidateStatus = 'pending' | 'processing' | 'reviewed' | 'passed' | 'hold' | 'rejected' | 'failed'
 export type CandidateRecommendation = 'strong_yes' | 'yes' | 'hold' | 'no'
+export type DecisionSyncStatus = 'idle' | 'pending' | 'synced' | 'failed' | 'skipped'
+
+export interface DecisionSyncError {
+  type: string
+  message: string
+  missingScopes: string[]
+  consoleUrl: string | null
+}
 
 export interface Job {
   id: string
@@ -87,6 +95,31 @@ export interface ScoreDimension {
   comment?: string
 }
 
+export type InterviewEvaluationRecommendation = 'pass' | 'conditional_pass' | 'reject'
+export type InterviewEvaluationDimensionStatus = 'demonstrated' | 'partial' | 'gap' | 'not_assessed'
+export type ClaimVerificationStatus = 'verified' | 'partially_verified' | 'insufficient_evidence' | 'not_assessed' | 'contradicted'
+
+export interface InterviewEvaluation {
+  recommendation: InterviewEvaluationRecommendation
+  summary: string
+  strengths: string[]
+  concerns: string[]
+  notAssessed: string[]
+  criticalGaps: string[]
+  assessedCoverageWeight: number
+  weightedScore: number | null
+  dimensions: Array<{ id: string; name: string; weight: number; status: InterviewEvaluationDimensionStatus; score: number | null; evidence: string[]; assessment: string }>
+  claimVerifications: Array<{ claim: string; status: ClaimVerificationStatus; evidence: string[]; assessment: string }>
+}
+
+export interface CandidateTask {
+  id: string
+  stage: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  error?: string | null
+  createdAt?: string
+}
+
 export interface Candidate {
   id: string
   name: string
@@ -110,6 +143,14 @@ export interface Candidate {
   dimensions?: ScoreDimension[]
   summary?: string
   resumeUrl?: string
+  syncStatus?: DecisionSyncStatus | null
+  syncTarget?: 'passed' | 'rejected' | null
+  syncError?: DecisionSyncError | null
+  syncAt?: string | null
+  interviewTranscript?: string | null
+  interviewEvaluation?: InterviewEvaluation | null
+  interviewEvaluationCreatedAt?: string | null
+  tasks?: CandidateTask[]
 }
 
 export interface CollectResult {
@@ -117,4 +158,12 @@ export interface CollectResult {
   skipped?: number
   queued?: number
   message?: string
+}
+
+export interface DecisionSyncResult {
+  candidates?: number
+  queued?: number
+  synced?: number
+  skipped?: number
+  failed?: number
 }

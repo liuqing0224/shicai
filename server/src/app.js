@@ -10,7 +10,10 @@ import { loadConfig } from './config.js';
 import { createProvider } from './providers/index.js';
 import { EvaluationQueue } from './queue.js';
 import { generateJobProfile } from './job-profile.js';
+import { DecisionSync } from './decision-sync.js';
 import { fetchLarkDocument, isLarkDocumentUrl } from './lark.js';
+import { LarkHireClient } from './lark-hire.js';
+import { interviewEvaluationRequestSchema } from './interview-evaluation.js';
 import { candidateInputSchema, candidatePatchSchema, feishuImportSchema, jobInputSchema, jobPatchSchema, normalizeImportedCandidate } from './schema.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -21,6 +24,8 @@ export function createApp(options = {}) {
   const config = loadConfig(options);
   const db = options.db ?? createDatabase(options.database ?? path.join(config.dataDir, 'app.db'));
   const provider = options.providerInstance ?? createProvider(config);
+  const hireClient = options.decisionSyncClient ?? new LarkHireClient({ bin: config.larkCliBin, timeoutMs: config.larkHireSyncTimeoutMs });
+  const decisionSync = new DecisionSync({ db, client: hireClient, autoStart: options.autoStartDecisionSync ?? true });
   const analyzeJob = (job, persist = true) => generateJobProfile({ db, provider, job, persist });
   const fetchDoc = options.fetchDoc ?? ((url) => fetchLarkDocument(url, { bin: config.larkCliBin }));
   const queue = new EvaluationQueue({ db, provider, generateJobProfile: (job) => analyzeJob(job), concurrency: config.concurrency, autoStart: config.autoStartQueue });
@@ -127,6 +132,7 @@ export function createApp(options = {}) {
     const value = candidatePatchSchema.parse(req.body);
     const updated = { ...current, ...value, status: internalCandidateStatus(value.status ?? current.status), updatedAt: now() };
     db.prepare('UPDATE candidates SET name=@name,resume_text=@resumeText,status=@status,updated_at=@updatedAt WHERE id=@id').run(updated);
+    if (value.status === 'passed' || value.status === 'rejected') decisionSync.enqueue(req.params.id);
     res.json(mapCandidate(db.prepare('SELECT * FROM candidates WHERE id = ?').get(req.params.id)));
   };
   app.patch('/api/candidates/:id', patchCandidate);
@@ -138,6 +144,15 @@ export function createApp(options = {}) {
   app.post('/api/candidates/:id/interview', (req, res) => {
     const queued = queue.enqueueInterview(req.params.id, { force: req.body?.force === true });
     res.status(202).json({ queued });
+  });
+  app.post('/api/candidates/:id/interview-evaluation', (req, res) => {
+    const value = interviewEvaluationRequestSchema.parse(req.body);
+    const queued = queue.enqueueInterviewEvaluation(req.params.id, value.transcript, { force: value.force });
+    res.status(202).json({ queued });
+  });
+  app.post('/api/candidates/:id/sync', (req, res) => {
+    const result = decisionSync.enqueue(req.params.id, { force: req.body?.force === true });
+    res.status(202).json({ result, candidate: mapCandidate(db.prepare('SELECT * FROM candidates WHERE id = ?').get(req.params.id)) });
   });
   const evaluateJobCandidates = (req, res) => {
     const job = db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id);
@@ -165,6 +180,17 @@ export function createApp(options = {}) {
   };
   app.post('/api/jobs/:id/interviews', designJobInterviews);
   app.post('/api/positions/:id/interviews', designJobInterviews);
+  const syncJobDecisions = (req, res) => {
+    if (!db.prepare('SELECT id FROM jobs WHERE id = ?').get(req.params.id)) throw notFound('职位');
+    const candidates = db.prepare("SELECT id FROM candidates WHERE position_id=? AND status IN ('shortlisted','rejected') ORDER BY created_at").all(req.params.id);
+    let queued = 0; let skipped = 0;
+    for (const candidate of candidates) {
+      decisionSync.enqueue(candidate.id, { force: req.body?.force === true }) === 'queued' ? queued += 1 : skipped += 1;
+    }
+    res.status(202).json({ candidates: candidates.length, queued, skipped });
+  };
+  app.post('/api/jobs/:id/sync-decisions', syncJobDecisions);
+  app.post('/api/positions/:id/sync-decisions', syncJobDecisions);
 
   app.get('/api/tasks', (req, res) => {
     const where = []; const params = {};
@@ -180,6 +206,7 @@ export function createApp(options = {}) {
     { id: 'evaluate', name: '评估 Agent', stage: 'evaluate', provider: config.provider },
     { id: 'review', name: '复核 Agent', stage: 'review', provider: config.provider },
     { id: 'interview', name: '面试设计 Agent', stage: 'interview', provider: config.provider },
+    { id: 'interview-evaluate', name: '面试评价 Agent', stage: 'interview-evaluate', provider: config.provider },
   ].map((agent) => ({ ...agent, queue: queue.stats() }))));
 
   app.post('/api/import/feishu', (req, res) => {
@@ -233,5 +260,5 @@ export function createApp(options = {}) {
     res.status(error.statusCode ?? 500).json({ error: error.message ?? '服务器错误' });
   });
 
-  return { app, db, queue, config };
+  return { app, db, queue, decisionSync, config };
 }

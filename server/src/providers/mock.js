@@ -86,9 +86,41 @@ export function designInterviewMock({ candidate, jobProfile, report }) {
   };
 }
 
+export function evaluateInterviewMock({ jobProfile, report, transcript }) {
+  const lines = pickEvidence(transcript);
+  const dimensions = jobProfile.dimensions.map((dimension) => {
+    const evidence = lines.filter((line) => dimension.keywords.some((keyword) => line.toLowerCase().includes(keyword.toLowerCase())));
+    const status = evidence.length ? (evidence.length >= 2 ? 'demonstrated' : 'partial') : 'not_assessed';
+    return {
+      id: dimension.id, name: dimension.name, weight: dimension.weight, status,
+      score: status === 'not_assessed' ? null : status === 'demonstrated' ? 3 : 2,
+      evidence,
+      assessment: status === 'not_assessed' ? '面试记录未覆盖该维度，不作负面判断。' : '面试记录提供了可核对的相关行为证据。',
+    };
+  });
+  const claims = [...report.strengths, ...report.gaps].slice(0, 6);
+  const claimVerifications = claims.map((claim) => {
+    const evidence = lines.filter((line) => keywords(claim).some((keyword) => line.toLowerCase().includes(keyword.toLowerCase())));
+    return {
+      claim, status: evidence.length ? 'partially_verified' : 'not_assessed', evidence,
+      assessment: evidence.length ? '对话中有部分支持证据，仍需结合细节核验。' : '面试未覆盖该简历主张。',
+    };
+  });
+  const assessedCount = dimensions.filter((dimension) => dimension.status !== 'not_assessed').length;
+  return {
+    recommendation: assessedCount >= 4 ? 'pass' : 'conditional_pass',
+    summary: '评价仅基于面试记录中可观察的行为证据，未覆盖项不计为缺点。',
+    strengths: dimensions.filter((dimension) => dimension.score >= 3).map((dimension) => dimension.name),
+    concerns: dimensions.filter((dimension) => dimension.status === 'gap').map((dimension) => dimension.name),
+    notAssessed: dimensions.filter((dimension) => dimension.status === 'not_assessed').map((dimension) => dimension.name),
+    claimVerifications, criticalGaps: [], assessedCoverageWeight: 0, weightedScore: null, dimensions,
+  };
+}
+
 export class MockProvider {
   async analyzeJob(context) { return analyzeJobMock(context); }
   async designInterview(context) { return designInterviewMock(context); }
+  async evaluateInterview(context) { return evaluateInterviewMock(context); }
 
   async parse({ candidate }) {
     const text = candidate.resumeText;

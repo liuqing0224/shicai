@@ -1,5 +1,11 @@
-import { ArrowLeft, Check, CheckCircle2, ChevronRight, CirclePause, Sparkles, TriangleAlert, UserRound, X } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, Check, CirclePause, LoaderCircle, RefreshCw, Sparkles, UserRound, X } from 'lucide-react'
+import { api } from './api'
 import { InterviewPlanView } from './InterviewPlan'
+import { InterviewEvaluationView } from './InterviewEvaluation'
+import { CandidatePerformanceSummary } from './CandidatePerformanceSummary'
+import { DecisionSyncBadge } from './DecisionSyncBadge'
+import { isDecisionSyncEligible } from './decisionSyncUtils'
 import type { Candidate, CandidateStatus, Job } from './types'
 
 const statusMeta: Record<CandidateStatus, { label: string; className: string }> = {
@@ -8,16 +14,24 @@ const statusMeta: Record<CandidateStatus, { label: string; className: string }> 
   hold: { label: '待定', className: 'status-hold' }, rejected: { label: '淘汰', className: 'status-rejected' }, failed: { label: '评估失败', className: 'status-rejected' },
 }
 
-export function CandidateDrawer({ candidate, job, onClose, onStatus }: { candidate: Candidate; job?: Job; onClose: () => void; onStatus: (candidate: Candidate, status: CandidateStatus) => void }) {
-  const sections = [{ title: '匹配优势', values: candidate.strengths, tone: 'positive' }, { title: '风险提示', values: candidate.risks, tone: 'risk' }, { title: '能力差距', values: candidate.gaps, tone: 'neutral' }]
-  return <div className="drawer-layer"><button className="modal-backdrop" aria-label="关闭" onClick={onClose} /><aside className="drawer"><div className="drawer-head"><button className="back-button" onClick={onClose}><ArrowLeft size={18} />返回</button><button className="icon-button" title="关闭" onClick={onClose}><X size={19} /></button></div><div className="candidate-hero"><Avatar name={candidate.name} /><div><h2>{candidate.name}</h2><p>{candidate.currentTitle || '职位待补充'}{candidate.currentCompany ? ` · ${candidate.currentCompany}` : ''}</p><div className="hero-tags"><span className="manual-status-label">人工状态</span><Status status={candidate.status} /><Recommendation value={candidate.recommendation} /><span>{candidate.jobName || job?.name || '未关联职位'}</span></div></div><div className="hero-score"><strong>{typeof candidate.score === 'number' ? candidate.score : '—'}</strong><span>匹配分</span><b>{candidate.level || ''}</b></div></div>
+export function CandidateDrawer({ candidate, job, onClose, onStatus, onSyncUpdated }: { candidate: Candidate; job?: Job; onClose: () => void; onStatus: (candidate: Candidate, status: CandidateStatus) => void; onSyncUpdated: (candidate: Candidate) => void }) {
+  const [retrying, setRetrying] = useState(false)
+  const [syncError, setSyncError] = useState('')
+  const retrySync = async () => {
+    setRetrying(true); setSyncError('')
+    try { onSyncUpdated(await api.retryCandidateSync(candidate.id)) }
+    catch (cause) { setSyncError(cause instanceof Error ? cause.message : '同步未能完成，请稍后重试') }
+    finally { setRetrying(false) }
+  }
+  return <div className="candidate-detail-page page-content"><div className="candidate-detail-back"><button className="text-button" onClick={onClose}><ArrowLeft size={16} />返回候选人列表</button></div><article className="candidate-detail-shell"><div className="candidate-hero"><Avatar name={candidate.name} /><div><h2>{candidate.name}</h2><p>{candidate.currentTitle || '职位待补充'}{candidate.currentCompany ? ` · ${candidate.currentCompany}` : ''}</p><div className="hero-tags"><span className="manual-status-label">人工状态</span><Status status={candidate.status} /><Recommendation value={candidate.recommendation} /><span>{candidate.jobName || job?.name || '未关联职位'}</span></div></div><div className="hero-score"><strong>{typeof candidate.score === 'number' ? candidate.score : '-'}</strong><span>匹配分</span><b>{candidate.level || ''}</b></div></div>
     <div className="decision-bar"><button className="decision-pass" onClick={() => onStatus(candidate, 'passed')}><Check size={17} />通过</button><button className="decision-hold" onClick={() => onStatus(candidate, 'hold')}><CirclePause size={17} />待定</button><button className="decision-reject" onClick={() => onStatus(candidate, 'rejected')}><X size={17} />淘汰</button></div>
-    <div className="drawer-content">{candidate.summary && <DetailSection title="综合评价"><p className="summary-text">{candidate.summary}</p></DetailSection>}
-    {candidate.dimensions?.length ? <DetailSection title="逐维评估"><div className="dimension-list">{candidate.dimensions.map((dimension) => <DimensionAssessment key={dimension.id || dimension.name} dimension={dimension} />)}</div></DetailSection> : null}
-    {sections.map((section) => section.values?.length ? <DetailSection key={section.title} title={section.title}><ul className={`insight-list ${section.tone}`}>{section.values.map((value, index) => <li key={index}>{section.tone === 'positive' ? <CheckCircle2 size={16} /> : section.tone === 'risk' ? <TriangleAlert size={16} /> : <ChevronRight size={16} />}{value}</li>)}</ul></DetailSection> : null)}
+    {isDecisionSyncEligible(candidate) && <div className="drawer-sync"><div><span>飞书同步</span><DecisionSyncBadge candidate={candidate} /></div>{candidate.syncStatus === 'failed' && <button className="secondary-button" disabled={retrying} onClick={() => void retrySync()}>{retrying ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}{retrying ? '正在重试…' : '重试同步'}</button>}{syncError && <p role="alert">{syncError}</p>}</div>}
+    <div className="drawer-content"><CandidatePerformanceSummary candidate={candidate} />
+    {candidate.dimensions?.length ? <DetailSection title="逐维评估" className="dimension-assessment-full"><div className="dimension-list">{candidate.dimensions.map((dimension) => <DimensionAssessment key={dimension.id || dimension.name} dimension={dimension} />)}</div></DetailSection> : null}
     {candidate.interviewPlan ? <InterviewPlanView plan={candidate.interviewPlan} /> : candidate.interviewQuestions?.length ? <DetailSection title="建议面试问题"><ol className="question-list">{candidate.interviewQuestions.map((item, index) => <li key={index}><span>{index + 1}</span>{item}</li>)}</ol></DetailSection> : null}
-    {!candidate.summary && !candidate.dimensions?.length && !sections.some((item) => item.values?.length) && !candidate.interviewPlan && !candidate.interviewQuestions?.length && <div className="pending-detail"><Sparkles size={24} /><strong>{candidate.status === 'processing' ? '正在生成评估报告' : '暂无评估详情'}</strong><span>完成 AI 评估后，此处会展示维度得分、优势、风险和面试建议。</span></div>}</div>
-  </aside></div>
+    <InterviewEvaluationView candidate={candidate} onUpdated={onSyncUpdated} />
+    {!candidate.summary && !candidate.dimensions?.length && !candidate.strengths?.length && !candidate.risks?.length && !candidate.gaps?.length && !candidate.interviewPlan && !candidate.interviewQuestions?.length && <div className="pending-detail"><Sparkles size={24} /><strong>{candidate.status === 'processing' ? '正在生成评估报告' : '暂无评估详情'}</strong><span>完成 AI 评估后，此处会展示维度得分、优势、风险和面试建议。</span></div>}</div>
+  </article></div>
 }
 
 function DimensionAssessment({ dimension }: { dimension: NonNullable<Candidate['dimensions']>[number] }) {
@@ -37,7 +51,7 @@ function DimensionEvidence({ title, items, tone }: { title: string; items: strin
   return <div className={`dimension-evidence ${tone}`}><h4>{title}</h4><ul>{items.map((item, index) => <li key={index}>{item}</li>)}</ul></div>
 }
 
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) { return <section className="detail-section"><h3>{title}</h3>{children}</section> }
+function DetailSection({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) { return <section className={`detail-section ${className}`}><h3>{title}</h3>{children}</section> }
 function Avatar({ name }: { name: string }) { return <span className="avatar large">{name?.trim().slice(0, 1) || <UserRound size={16} />}</span> }
 function Status({ status }: { status: CandidateStatus }) { const meta = statusMeta[status]; return <span className={`status ${meta.className}`}>{status === 'processing' && <i />}{meta.label}</span> }
 function Recommendation({ value }: { value?: Candidate['recommendation'] }) { if (!value) return null; const labels = { strong_yes: '建议通过', yes: '建议通过', hold: '建议待定', no: '建议淘汰' }; return <span className={`recommendation recommendation-${value}`}><Sparkles size={11} />{labels[value]}</span> }
