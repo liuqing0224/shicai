@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ClipboardCheck, LoaderCircle, Sparkles, XCircle } from 'lucide-react'
 import { api } from './api'
-import { formatCoverage, formatInterviewDimensionScore, latestActiveInterviewEvaluationTask, waitForInterviewEvaluation } from './interviewEvaluationUtils'
+import { formatCoverage, formatInterviewDimensionScore, hasInterviewEvaluationWork, latestActiveInterviewEvaluationTask, waitForInterviewEvaluation } from './interviewEvaluationUtils'
 import type { Candidate, ClaimVerificationStatus, InterviewEvaluationDimensionStatus } from './types'
 import './interviewEvaluation.css'
 
 export function InterviewEvaluationView({ candidate, onUpdated }: { candidate: Candidate; onUpdated: (candidate: Candidate) => void }) {
+  const evaluationWorkExists = hasInterviewEvaluationWork(candidate)
   const [transcript, setTranscript] = useState(candidate.interviewTranscript || '')
+  const [interviewCompleted, setInterviewCompleted] = useState(() => evaluationWorkExists)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const mounted = useRef(true)
@@ -15,7 +17,10 @@ export function InterviewEvaluationView({ candidate, onUpdated }: { candidate: C
     mounted.current = true
     return () => { mounted.current = false }
   }, [])
-  useEffect(() => { setTranscript(candidate.interviewTranscript || '') }, [candidate.id, candidate.interviewTranscript])
+  useEffect(() => {
+    setTranscript(candidate.interviewTranscript || '')
+    setInterviewCompleted(evaluationWorkExists)
+  }, [candidate.id, candidate.interviewTranscript, evaluationWorkExists])
   useEffect(() => {
     if (!activeTask) return
     let cancelled = false
@@ -53,10 +58,11 @@ export function InterviewEvaluationView({ candidate, onUpdated }: { candidate: C
   }
 
   return <section className="detail-section interview-evaluation">
-    <div className="evaluation-title"><div><h3>面试评价</h3><p>粘贴完整对话记录，评价将结合岗位画像和简历主张生成。</p></div><ClipboardCheck size={20} /></div>
-    <label className="transcript-field"><span>面试对话记录 <b>{transcript.length.toLocaleString('zh-CN')} 字</b></span><textarea rows={10} value={transcript} disabled={loading} onChange={(event) => setTranscript(event.target.value)} placeholder="在此粘贴面试官与候选人的完整对话记录…" /></label>
-    <div className="evaluation-action"><button className="primary-button" disabled={loading} onClick={() => void generate()}>{loading ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}{loading ? '正在生成评价…' : '生成面试评价'}</button>{loading && <span>正在分析对话并核验岗位要求，请稍候。</span>}</div>
-    {error && <p className="evaluation-error" role="alert"><AlertTriangle size={15} />{error}</p>}
+    <div className="evaluation-title"><div><h3>面试评价</h3><p>面试结束后确认完成，再粘贴对话记录生成评价。</p></div><ClipboardCheck size={20} /></div>
+    <label className="interview-completed-check"><input type="checkbox" checked={interviewCompleted} disabled={loading || Boolean(candidate.interviewEvaluation)} onChange={(event) => { setInterviewCompleted(event.target.checked); setError('') }} /><span><strong>面试已完成</strong><small>{interviewCompleted ? '可以录入面试记录并生成评价' : '未完成前无需填写面试评价'}</small></span></label>
+    {interviewCompleted && <><label className="transcript-field"><span>面试对话记录 <b>{transcript.length.toLocaleString('zh-CN')} 字</b></span><textarea rows={10} value={transcript} disabled={loading} onChange={(event) => setTranscript(event.target.value)} placeholder="在此粘贴面试官与候选人的完整对话记录…" /></label>
+      <div className="evaluation-action"><button className="primary-button" disabled={loading} onClick={() => void generate()}>{loading ? <LoaderCircle className="spin" size={17} /> : <Sparkles size={17} />}{loading ? '正在生成评价…' : '生成面试评价'}</button>{loading && <span>正在分析对话并核验岗位要求，请稍候。</span>}</div>
+      {error && <p className="evaluation-error" role="alert"><AlertTriangle size={15} />{error}</p>}</>}
     {candidate.interviewEvaluation && <EvaluationResult candidate={candidate} />}
   </section>
 }

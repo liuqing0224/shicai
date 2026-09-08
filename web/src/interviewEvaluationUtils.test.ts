@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCoverage, formatInterviewDimensionScore, latestActiveInterviewEvaluationTask, waitForInterviewEvaluation } from './interviewEvaluationUtils'
+import { formatCoverage, formatInterviewDimensionScore, hasInterviewEvaluationWork, latestActiveInterviewEvaluationTask, waitForInterviewEvaluation } from './interviewEvaluationUtils'
 import type { Candidate } from './types'
 
 const base: Candidate = { id: '1', jobId: 'job-1', name: '候选人', status: 'reviewed' }
@@ -41,5 +41,11 @@ describe('interview evaluation polling', () => {
     expect(latestActiveInterviewEvaluationTask(tasks)?.id).toBe('running')
     expect(latestActiveInterviewEvaluationTask([{ id: 'failed', stage: 'interview-evaluate', status: 'failed' }])).toBeUndefined()
     expect(latestActiveInterviewEvaluationTask([{ id: 'running', stage: 'interview-evaluate', status: 'running' }, { id: 'done', stage: 'interview-evaluate', status: 'completed' }])).toBeUndefined()
+  })
+
+  it('restores the completed gate when interview evaluation work already exists', () => {
+    expect(hasInterviewEvaluationWork(base)).toBe(false)
+    expect(hasInterviewEvaluationWork({ ...base, interviewTranscript: '面试官：请介绍项目。' })).toBe(true)
+    expect(hasInterviewEvaluationWork({ ...base, tasks: [{ id: 'running', stage: 'interview-evaluate', status: 'running' }] })).toBe(true)
   })
 })

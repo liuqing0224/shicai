@@ -37,3 +37,7 @@ export function latestActiveInterviewEvaluationTask(tasks: CandidateTask[] = [])
   const latest = [...tasks].reverse().find((task) => task.stage === 'interview-evaluate')
   return latest && ['queued', 'running'].includes(latest.status) ? latest : undefined
 }
+
+export function hasInterviewEvaluationWork(candidate: Candidate) {
+  return Boolean(candidate.interviewTranscript?.trim() || candidate.interviewEvaluation || latestActiveInterviewEvaluationTask(candidate.tasks))
+}

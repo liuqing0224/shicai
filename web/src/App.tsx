@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { api } from './api'
 import { CandidatesView } from './CandidatesView'
+import { JobCard } from './JobCard'
 import { candidatesForJob } from './workflow'
 import type { Candidate, CandidateStatus, CollectResult, Job } from './types'
 
@@ -239,13 +240,7 @@ function JobsView({ jobs, candidates, onCreate, onOpenCandidates, onOpenProfile,
   return <div className="page-content"><div className="job-grid">{jobs.map((job) => {
     const related = candidates.filter((item) => item.jobId === job.id)
     const done = related.filter((item) => !['pending', 'processing'].includes(item.status)).length
-    return <article className="job-card" key={job.id}>
-      <div className="job-card-head"><div className="job-icon"><BriefcaseBusiness size={20} /></div><span className={`job-state ${job.status === 'paused' ? 'paused' : ''}`}>{job.status === 'paused' ? '已暂停' : '招聘中'}</span></div>
-      <h3>{job.name}</h3><p className="department">{job.department || '未设置部门'}</p>
-      <div className="job-stats"><div><strong>{related.length}</strong><span>候选人</span></div><div><strong>{done}</strong><span>已评估</span></div><div><strong>{related.filter((item) => item.status === 'passed').length}</strong><span>已通过</span></div></div>
-      <button className="jd-toggle" onClick={() => onOpenProfile(job.id)}>岗位画像 <ChevronRight size={16} /></button>
-      <div className="job-actions"><button className="candidate-button" onClick={() => onOpenCandidates(job.id)}><UsersRound size={17} />查看候选人<ChevronRight size={16} /></button><button className="collect-button" disabled={collecting === job.id || job.status === 'paused'} onClick={() => void collect(job)}>{collecting === job.id ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}{collecting === job.id ? '正在采集…' : '启动飞书采集'}</button></div>
-    </article>
+    return <JobCard key={job.id} job={job} candidateCount={related.length} reviewedCount={done} passedCount={related.filter((item) => item.status === 'passed').length} collecting={collecting === job.id} onOpenCandidates={() => onOpenCandidates(job.id)} onOpenProfile={() => onOpenProfile(job.id)} onCollect={() => void collect(job)} />
   })}</div></div>
 }
 

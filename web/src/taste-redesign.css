@@ -52,28 +52,36 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .panel-head h2 { font-size: 14px; }
 .compact-row { min-height: 64px; }
 
-.job-grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.job-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
 .job-card {
-  min-height: 238px;
-  padding: 20px;
+  min-width: 0;
+  min-height: 244px;
+  padding: 18px;
   border-radius: 8px;
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  grid-template-areas: "head title" "head department" "stats stats" "profile profile" "actions actions";
-  column-gap: 14px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
 }
-.job-card:hover { border-color: #bdc9c1; box-shadow: 0 6px 22px rgba(24,32,27,.055); }
-.job-card-head { grid-area: head; align-self: start; display: grid; gap: 12px; }
-.job-icon { width: 42px; height: 42px; border-radius: 7px; }
-.job-state { justify-self: start; }
-.job-card h3 { grid-area: title; margin: 0; align-self: end; font-size: 17px; }
-.department { grid-area: department; margin: 5px 0 0; align-self: start; }
-.job-stats { grid-area: stats; width: 100%; margin-top: 16px; padding: 15px 0; border-block: 1px solid #e7eae6; border-left: 0; }
-.job-stats strong { font-size: 21px; font-variant-numeric: tabular-nums; }
-.jd-toggle { grid-area: profile; padding: 11px 0 5px; color: #d54116; }
-.job-actions { grid-area: actions; margin-top: 0; padding: 7px 0 0; }
-.candidate-button, .collect-button { border-radius: 7px; }
+.job-card:hover { border-color: #c9cec9; background: #fffdfa; box-shadow: 0 8px 24px rgba(45,38,31,.06); }
+.job-card-header { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.job-icon { width: 42px; height: 42px; border-radius: 7px; color: #d54116; background: #fff0e9; }
+.job-identity { min-width: 0; }
+.job-card h3 { margin: 0; overflow: hidden; color: #202521; font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.department { margin: 5px 0 0; }
+.job-state { align-self: start; color: #b53a16; background: #fff0e9; }
+.job-stats { width: 100%; margin: 18px 0 0; padding: 14px 4px; border: 0; border-radius: 7px; background: #f6f7f4; }
+.job-stats div { display: grid; grid-template-rows: auto auto; gap: 5px; border-color: #dfe3de; }
+.job-stats span { margin: 0; color: #7a827c; font-size: 10px; }
+.job-stats strong { color: #252a26; font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1; }
+.job-card-footer { margin-top: auto; padding-top: 14px; }
+.jd-toggle { width: auto; min-height: 30px; padding: 0; justify-content: flex-start; gap: 3px; color: #c64017; font-weight: 650; }
+.jd-toggle:hover { color: #a93212; }
+.job-actions { margin-top: 8px; padding: 0; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+.candidate-button, .collect-button { min-height: 40px; border-radius: 7px; }
+.candidate-button { border-color: #e1491a; color: #fff; background: #e1491a; }
+.candidate-button svg:last-child { margin-left: auto; }
+.candidate-button:hover { border-color: #c93d14; color: #fff; background: #c93d14; }
+.collect-button { border-color: #d8ddd8; color: #4f5852; background: #fff; }
+.collect-button:hover { border-color: #c9cec9; color: #c64017; background: #fff7f3; }
 
 .profile-page { gap: 14px; }
 .profile-intro, .profile-criteria, .profile-dimension-section { border-radius: 8px; overflow: hidden; }
@@ -164,16 +172,14 @@ td { height: 62px; }
 
 /* Remove the previous green system while retaining distinct semantic states. */
 .health-dot { background: #7d9fe0; box-shadow: 0 0 0 3px #2c3545; }
-.text-button, .context-back:hover, .candidate-button:hover { color: #d54116; }
-.context-back:hover, .icon-button:hover, .candidate-button:hover, .row-actions button:hover { background: #fff3ed; }
+.text-button, .context-back:hover { color: #d54116; }
+.context-back:hover, .icon-button:hover, .row-actions button:hover { background: #fff3ed; }
 .tone-green, .job-icon { color: #c64017; background: #fff0e8; }
 .tone-ink { color: #414743; background: #ecefeb; }
 .progress-track i, .dimension-track i, .dimension-track i { background: #e06a3a; }
 .avatar { color: #34413a; background: #e2e7e3; }
 .job-state, .status-passed, .requirement-met { color: #245ea8; background: #edf3fb; }
 .recommendation-strong_yes, .recommendation-yes, .score-high, .sync-synced { color: #245ea8; }
-.collect-button { border-color: #e7c5b6; color: #c64017; background: #fff6f1; }
-.collect-button:hover { background: #ffede4; }
 .seniority-tag { color: #b93a16; background: #fff0e8; }
 .radar-legend i { background: #e1491a; }
 .radar-legend b, .profile-dimension-detail b, .hero-score strong, .dimension-heading > b { color: #c64017; }
