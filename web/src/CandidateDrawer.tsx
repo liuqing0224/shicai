@@ -16,15 +16,24 @@ const statusMeta: Record<CandidateStatus, { label: string; className: string }> 
 
 export function CandidateDrawer({ candidate, job, onClose, onStatus, onSyncUpdated }: { candidate: Candidate; job?: Job; onClose: () => void; onStatus: (candidate: Candidate, status: CandidateStatus) => void; onSyncUpdated: (candidate: Candidate) => void }) {
   const [retrying, setRetrying] = useState(false)
+  const [evaluationRetrying, setEvaluationRetrying] = useState(false)
   const [syncError, setSyncError] = useState('')
+  const [evaluationError, setEvaluationError] = useState('')
   const retrySync = async () => {
     setRetrying(true); setSyncError('')
     try { onSyncUpdated(await api.retryCandidateSync(candidate.id)) }
     catch (cause) { setSyncError(cause instanceof Error ? cause.message : '同步未能完成，请稍后重试') }
     finally { setRetrying(false) }
   }
+  const retryEvaluation = async () => {
+    setEvaluationRetrying(true); setEvaluationError('')
+    try { await api.retryCandidateEvaluation(candidate.id); onSyncUpdated(await api.candidate(candidate.id)) }
+    catch (cause) { setEvaluationError(cause instanceof Error ? cause.message : '重新评估失败，请稍后重试') }
+    finally { setEvaluationRetrying(false) }
+  }
   return <div className="candidate-detail-page page-content"><div className="candidate-detail-back"><button className="text-button" onClick={onClose}><ArrowLeft size={16} />返回候选人列表</button></div><article className="candidate-detail-shell"><div className="candidate-hero"><Avatar name={candidate.name} /><div><h2>{candidate.name}</h2><p>{candidate.currentTitle || '职位待补充'}{candidate.currentCompany ? ` · ${candidate.currentCompany}` : ''}</p><div className="hero-tags"><span className="manual-status-label">人工状态</span><Status status={candidate.status} /><Recommendation value={candidate.recommendation} /><span>{candidate.jobName || job?.name || '未关联职位'}</span></div></div><div className="hero-score"><strong>{typeof candidate.score === 'number' ? candidate.score : '-'}</strong><span>匹配分</span><b>{candidate.level || ''}</b></div></div>
     <div className="decision-bar"><button className="decision-pass" onClick={() => onStatus(candidate, 'passed')}><Check size={17} />通过</button><button className="decision-hold" onClick={() => onStatus(candidate, 'hold')}><CirclePause size={17} />待定</button><button className="decision-reject" onClick={() => onStatus(candidate, 'rejected')}><X size={17} />淘汰</button></div>
+    {candidate.status === 'failed' && <div className="evaluation-recovery"><div><strong>自动恢复未能完成评估</strong><span>{candidate.error || '可由招聘人员重新启动完整评估流程。'}</span>{evaluationError && <p role="alert">{evaluationError}</p>}</div><button className="secondary-button" disabled={evaluationRetrying} onClick={() => void retryEvaluation()}>{evaluationRetrying ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}{evaluationRetrying ? '正在恢复…' : '重新评估'}</button></div>}
     {isDecisionSyncEligible(candidate) && <div className="drawer-sync"><div><span>飞书同步</span><DecisionSyncBadge candidate={candidate} /></div>{candidate.syncStatus === 'failed' && <button className="secondary-button" disabled={retrying} onClick={() => void retrySync()}>{retrying ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}{retrying ? '正在重试…' : '重试同步'}</button>}{syncError && <p role="alert">{syncError}</p>}</div>}
     <div className="drawer-content"><CandidatePerformanceSummary candidate={candidate} />
     {candidate.dimensions?.length ? <DetailSection title="逐维评估" className="dimension-assessment-full"><div className="dimension-list">{candidate.dimensions.map((dimension) => <DimensionAssessment key={dimension.id || dimension.name} dimension={dimension} />)}</div></DetailSection> : null}

@@ -55,6 +55,9 @@ export const api = {
     const result = await request<RawCandidate | { data: RawCandidate }>(`/candidates/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })
     return normalizeCandidatePayload('data' in result ? result.data : result)
   },
+  async retryCandidateEvaluation(id: string) {
+    return request<{ queued: number }>(`/candidates/${id}/evaluate`, { method: 'POST', body: JSON.stringify({ force: true }) })
+  },
   async collect(jobId: string) {
     const result = await request<CollectResult | { data: CollectResult }>(`/jobs/${jobId}/collect`, { method: 'POST' })
     return 'data' in result ? result.data : result

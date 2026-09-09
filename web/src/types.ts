@@ -150,6 +150,7 @@ export interface Candidate {
   interviewTranscript?: string | null
   interviewEvaluation?: InterviewEvaluation | null
   interviewEvaluationCreatedAt?: string | null
+  error?: string | null
   tasks?: CandidateTask[]
 }
 

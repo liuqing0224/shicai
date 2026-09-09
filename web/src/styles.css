@@ -147,6 +147,9 @@ button:disabled { cursor: not-allowed; opacity: .58; }
 .sync-summary { margin: -2px 0 12px; padding: 9px 11px; border-left: 3px solid #51846c; color: #466052; background: #edf4f0; font-size: 11px; }
 .sync-badge { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 10px; font-weight: 650; }
 .sync-pending { color: #806425; }.sync-synced { color: #2b7455; }.sync-failed { color: #9b4c46; }
+.evaluation-status { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.evaluation-status button { padding: 3px 6px; border: 1px solid #e1b8b4; border-radius: 5px; color: #934843; background: #fff; display: inline-flex; align-items: center; gap: 3px; font-size: 9px; }
+.evaluation-status button:hover { background: #faeeed; }.evaluation-status button:disabled { opacity: .6; cursor: wait; }
 .filters { margin-bottom: 13px; display: flex; gap: 9px; }
 .search-field, .select-wrap { min-height: 39px; border: 1px solid #dce1dd; border-radius: 6px; background: #fff; color: #7b837e; display: flex; align-items: center; gap: 8px; padding: 0 11px; }
 .search-field { width: min(370px, 100%); }.search-field input { min-width: 0; width: 100%; }
@@ -183,6 +186,8 @@ td { height: 65px; padding: 9px 15px; border-top: 1px solid #edf0ee; color: #4e5
 .hero-score { margin-left: auto; min-width: 76px; text-align: center; }.hero-score strong, .hero-score span, .hero-score b { display: block; }.hero-score strong { color: #286e52; font-size: 31px; line-height: 1; }.hero-score span { margin-top: 5px; color: #818983; font-size: 10px; }.hero-score b { margin-top: 2px; color: #9b762f; font-size: 10px; }
 .decision-bar { padding: 12px 23px; border-bottom: 1px solid #e2e6e2; background: #fff; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.decision-bar button { min-height: 38px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 12px; font-weight: 650; }.decision-pass { border: 1px solid #bedacb; color: #276d50; background: #ebf5ef; }.decision-hold { border: 1px solid #e5d5ad; color: #866528; background: #faf3e2; }.decision-reject { border: 1px solid #e7c5c2; color: #954943; background: #f9edec; }
 .drawer-sync { padding: 10px 23px; border-bottom: 1px solid #e2e6e2; background: #fff; display: flex; align-items: center; gap: 12px; }
+.evaluation-recovery { padding: 12px 23px; border-bottom: 1px solid #ead6d3; background: #fcf4f3; display: flex; align-items: center; gap: 16px; }
+.evaluation-recovery > div { display: grid; gap: 3px; }.evaluation-recovery strong { color: #87423e; font-size: 11px; }.evaluation-recovery span { color: #8a6865; font-size: 10px; }.evaluation-recovery p { margin: 3px 0 0; color: #a43f38; font-size: 10px; }.evaluation-recovery button { margin-left: auto; white-space: nowrap; }
 .drawer-sync > div { display: flex; align-items: center; gap: 9px; color: #7b837e; font-size: 10px; }.drawer-sync .secondary-button { margin-left: auto; min-height: 32px; padding: 0 10px; font-size: 10px; }.drawer-sync > p { margin: 0; color: #984a45; font-size: 10px; }
 .drawer-content { min-width: 0; padding: 16px 23px 40px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }.drawer-content > * { min-width: 0; }.detail-section { padding: 18px; border: 1px solid #e1e5e1; border-radius: 7px; background: #fff; }.detail-section h3 { margin: 0 0 13px; font-size: 13px; }.summary-text { margin: 0; color: #5f6862; font-size: 12px; line-height: 1.75; }
 .drawer-content > .performance-summary, .drawer-content > .interview-guide, .drawer-content > .pending-detail { grid-column: 1 / -1; }

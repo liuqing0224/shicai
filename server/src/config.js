@@ -15,6 +15,8 @@ export function loadConfig(overrides = {}) {
     dataDir: overrides.dataDir ?? process.env.DATA_DIR ?? path.join(projectRoot, '.data'),
     provider: overrides.provider ?? process.env.AGENT_PROVIDER ?? 'mock',
     concurrency: Math.max(1, Number(overrides.concurrency ?? process.env.AGENT_CONCURRENCY ?? 1)),
+    evaluationMaxAttempts: Math.max(1, Number(overrides.evaluationMaxAttempts ?? process.env.EVALUATION_MAX_ATTEMPTS ?? 3)),
+    evaluationRetryDelayMs: Math.max(0, Number(overrides.evaluationRetryDelayMs ?? process.env.EVALUATION_RETRY_DELAY_MS ?? 1500)),
     timeoutMs,
     codexBin: overrides.codexBin ?? process.env.CODEX_BIN ?? 'codex',
     larkCliBin: overrides.larkCliBin ?? process.env.LARK_CLI_BIN ?? 'lark-cli',

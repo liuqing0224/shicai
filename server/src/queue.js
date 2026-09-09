@@ -6,20 +6,41 @@ import { alignedInterviewPlanSchema, normalizeAlignedReport, parsedProfileSchema
 import { normalizeInterviewEvaluation } from './interview-evaluation.js';
 
 const stages = ['parse', 'evaluate', 'review', 'interview'];
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export class EvaluationQueue extends EventEmitter {
-  constructor({ db, provider, generateJobProfile, concurrency = 1, autoStart = true }) {
+  constructor({ db, provider, generateJobProfile, concurrency = 1, maxAttempts = 3, retryDelayMs = 1500, autoStart = true }) {
     super();
     this.db = db;
     this.provider = provider;
     this.generateJobProfile = generateJobProfile;
     this.concurrency = concurrency;
+    this.maxAttempts = maxAttempts;
+    this.retryDelayMs = retryDelayMs;
     this.autoStart = autoStart;
     this.active = 0;
     this.scheduled = false;
     db.prepare("UPDATE tasks SET status = 'queued', started_at = NULL WHERE status = 'running'").run();
     db.prepare("UPDATE candidates SET status = 'pending' WHERE status = 'evaluating' AND id NOT IN (SELECT candidate_id FROM tasks WHERE status = 'completed' AND stage = 'review')").run();
+    this.recoverFailedTasks();
     if (autoStart && this.nextTask()) this.kick();
+  }
+
+  recoverFailedTasks() {
+    const retryable = this.db.prepare("SELECT * FROM tasks WHERE status='failed' AND attempt < ? ORDER BY completed_at").all(this.maxAttempts);
+    const transaction = this.db.transaction(() => {
+      for (const task of retryable) {
+        this.db.prepare("UPDATE tasks SET status='queued',started_at=NULL,completed_at=NULL WHERE id=? AND status='failed'").run(task.id);
+        this.db.prepare("UPDATE tasks SET status='queued',error=NULL,completed_at=NULL WHERE candidate_id=? AND created_at=? AND status='cancelled' AND error LIKE '前置阶段 % 失败'")
+          .run(task.candidate_id, task.created_at);
+        const siblingCount = this.db.prepare('SELECT COUNT(*) count FROM tasks WHERE candidate_id=? AND created_at=? AND id<>?').get(task.candidate_id, task.created_at, task.id).count;
+        if (task.stage !== 'interview-evaluate' && !(task.stage === 'interview' && siblingCount === 0)) {
+          this.db.prepare("UPDATE candidates SET status='pending',error=NULL,updated_at=? WHERE id=?").run(new Date().toISOString(), task.candidate_id);
+        }
+      }
+    });
+    transaction();
+    return retryable.length;
   }
 
   enqueue(candidateId, { force = false } = {}) {
@@ -32,7 +53,11 @@ export class EvaluationQueue extends EventEmitter {
     const transaction = this.db.transaction(() => {
       if (force) this.db.prepare("UPDATE tasks SET status = 'cancelled', completed_at = ? WHERE candidate_id = ? AND status IN ('queued','running')").run(now, candidateId);
       for (const stage of stages) insert.run(randomUUID(), candidateId, stage, 'queued', now);
-      this.db.prepare("UPDATE candidates SET status = 'pending', error = NULL, updated_at = ? WHERE id = ?").run(now, candidateId);
+      if (force) {
+        this.db.prepare("UPDATE candidates SET status='pending',parsed_profile=NULL,report=NULL,interview_plan=NULL,interview_plan_created_at=NULL,interview_evaluation=NULL,interview_evaluation_created_at=NULL,error=NULL,updated_at=? WHERE id=?").run(now, candidateId);
+      } else {
+        this.db.prepare("UPDATE candidates SET status='pending',error=NULL,updated_at=? WHERE id=?").run(now, candidateId);
+      }
     });
     transaction();
     if (this.autoStart) this.kick();
@@ -174,6 +199,20 @@ export class EvaluationQueue extends EventEmitter {
     } catch (error) {
       const failedAt = new Date().toISOString();
       const message = error instanceof Error ? error.message : String(error);
+      const currentAttempt = task.attempt + 1;
+      if (currentAttempt < this.maxAttempts) {
+        const retryIn = this.retryDelayMs * (2 ** (currentAttempt - 1));
+        if (retryIn) await delay(retryIn);
+        const retryMessage = `自动修复中（${currentAttempt}/${this.maxAttempts}）：${message}`;
+        const transaction = this.db.transaction(() => {
+          const queued = this.db.prepare("UPDATE tasks SET status='queued',error=?,started_at=NULL,completed_at=NULL WHERE id=? AND status='running'")
+            .run(retryMessage, task.id);
+          if (!queued.changes || standaloneEvaluation) return;
+          this.db.prepare('UPDATE candidates SET error=?,updated_at=? WHERE id=?').run(retryMessage, failedAt, candidate.id);
+        });
+        transaction();
+        return;
+      }
       const transaction = this.db.transaction(() => {
         const failed = this.db.prepare("UPDATE tasks SET status = 'failed', error = ?, completed_at = ? WHERE id = ? AND status = 'running'").run(message, failedAt, task.id);
         if (!failed.changes) return;

@@ -100,7 +100,7 @@ describe('resume evaluator API', () => {
       evaluate: async () => ({ score: 999 }),
       review: async ({ report }) => report,
     };
-    api = createApp({ database: ':memory:', providerInstance: invalidProvider, autoStartQueue: true });
+    api = createApp({ database: ':memory:', providerInstance: invalidProvider, evaluationRetryDelayMs: 0, autoStartQueue: true });
     const job = await createJob('测试职位');
     const created = await request(api.app).post('/api/candidates').send({ positionId: job.id, name: '赵六', resumeText: '有效的简历内容' }).expect(201);
     await api.queue.waitForIdle();
@@ -108,10 +108,32 @@ describe('resume evaluator API', () => {
     assert.equal(candidate.status, 'failed');
     assert.match(candidate.error, /score|expected|Too big/i);
     assert.equal(candidate.tasks.find((task) => task.stage === 'evaluate').status, 'failed');
+    assert.equal(candidate.tasks.find((task) => task.stage === 'evaluate').attempt, 3);
     assert.equal(candidate.tasks.find((task) => task.stage === 'review').status, 'cancelled');
   });
 
-  it('强制重跑不会被历史失败任务阻塞', async () => {
+  it('自动恢复耗尽后支持人工重新触发完整评估', async () => {
+    api.db.close();
+    api = createApp({ database: ':memory:', provider: 'mock', autoStartQueue: false });
+    const job = await createJob('人工恢复测试职位');
+    const created = await request(api.app).post('/api/candidates').send({
+      positionId: job.id, name: '恢复候选人', resumeText: 'Node.js 与 API 项目经验',
+    }).expect(201);
+    api.db.prepare("UPDATE candidates SET status='failed',parsed_profile='{}',report='{}',interview_plan='{}',interview_evaluation='{}',error='自动恢复已达上限' WHERE id=?").run(created.body.id);
+
+    await request(api.app).post(`/api/candidates/${created.body.id}/evaluate`).send({ force: true }).expect(202, { queued: 4 });
+    const candidate = (await request(api.app).get(`/api/candidates/${created.body.id}`).expect(200)).body;
+    assert.equal(candidate.status, 'pending');
+    assert.equal(candidate.error, null);
+    assert.equal(candidate.parsedProfile, null);
+    assert.equal(candidate.report, null);
+    assert.equal(candidate.interviewPlan, null);
+    assert.equal(candidate.interviewEvaluation, null);
+    assert.equal(candidate.tasks.filter((task) => task.status === 'queued').length, 4);
+    assert.equal(candidate.tasks.filter((task) => task.status === 'cancelled').length, 4);
+  });
+
+  it('临时评估失败会自动重试并恢复后续流程', async () => {
     api.db.close();
     let evaluationAttempts = 0;
     const retryProvider = {
@@ -131,17 +153,16 @@ describe('resume evaluator API', () => {
       },
       review: async ({ report }) => ({ ...report, review: { approved: true, notes: [] } }),
     };
-    api = createApp({ database: ':memory:', providerInstance: retryProvider, concurrency: 1 });
+    api = createApp({ database: ':memory:', providerInstance: retryProvider, concurrency: 1, evaluationRetryDelayMs: 0 });
     const job = await createJob('重跑测试职位');
     const created = await request(api.app).post('/api/candidates').send({
       positionId: job.id, name: '重跑候选人', resumeText: '两年相关工作经验',
     }).expect(201);
     await api.queue.waitForIdle();
-    await request(api.app).post(`/api/candidates/${created.body.id}/evaluate`).send({ force: true }).expect(202);
-    await api.queue.waitForIdle();
     const candidate = (await request(api.app).get(`/api/candidates/${created.body.id}`).expect(200)).body;
     assert.equal(candidate.status, 'reviewed');
     assert.equal(evaluationAttempts, 2);
+    assert.equal(candidate.tasks.find((task) => task.stage === 'evaluate').attempt, 2);
     assert.equal(candidate.tasks.at(-1).status, 'completed');
   });
 

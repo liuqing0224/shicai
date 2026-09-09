@@ -28,7 +28,11 @@ export function createApp(options = {}) {
   const decisionSync = new DecisionSync({ db, client: hireClient, autoStart: options.autoStartDecisionSync ?? true });
   const analyzeJob = (job, persist = true) => generateJobProfile({ db, provider, job, persist });
   const fetchDoc = options.fetchDoc ?? ((url) => fetchLarkDocument(url, { bin: config.larkCliBin }));
-  const queue = new EvaluationQueue({ db, provider, generateJobProfile: (job) => analyzeJob(job), concurrency: config.concurrency, autoStart: config.autoStartQueue });
+  const queue = new EvaluationQueue({
+    db, provider, generateJobProfile: (job) => analyzeJob(job), concurrency: config.concurrency,
+    maxAttempts: config.evaluationMaxAttempts, retryDelayMs: config.evaluationRetryDelayMs,
+    autoStart: config.autoStartQueue,
+  });
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: '5mb' }));

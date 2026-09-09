@@ -126,6 +126,17 @@ function App() {
     }
   }
 
+  const retryEvaluation = async (candidate: Candidate) => {
+    try {
+      await api.retryCandidateEvaluation(candidate.id)
+      setToast({ kind: 'success', text: `${candidate.name} 已重新进入评估流程` })
+      await loadData(true)
+    } catch (cause) {
+      setToast({ kind: 'error', text: cause instanceof Error ? cause.message : '重新评估失败' })
+      throw cause
+    }
+  }
+
   const go = (next: View) => {
     setView(next)
     if (!['job-candidates', 'job-profile', 'candidate-detail'].includes(next)) setSelectedJobId('')
@@ -179,7 +190,7 @@ function App() {
             {view === 'jobs' && <JobsView jobs={jobs} candidates={candidates} onCreate={() => setCreateOpen(true)} onOpenCandidates={openJobCandidates} onOpenProfile={openJobProfile} onCollectSuccess={(result) => { setToast({ kind: 'success', text: collectMessage(result) }); void loadData(true) }} />}
             {view === 'job-profile' && selectedJob && <Suspense fallback={<PageLoading />}><JobProfilePage job={selectedJob} onBack={() => go('jobs')} /></Suspense>}
             {view === 'job-profile' && !selectedJob && <EmptyPage icon={<BriefcaseBusiness />} title="职位不存在" text="该职位可能已被删除，请返回职位列表重新选择。" action="返回职位列表" onAction={() => go('jobs')} />}
-            {view === 'job-candidates' && selectedJob && <CandidatesView candidates={filteredCandidates} job={selectedJob} statusFilter={statusFilter} search={search} onBack={() => go('jobs')} onStatusFilter={setStatusFilter} onSearch={setSearch} onOpen={(candidate) => void openCandidate(candidate)} onStatus={changeStatus} onSyncComplete={() => void loadData(true)} onSyncError={(text) => setToast({ kind: 'error', text })} />}
+            {view === 'job-candidates' && selectedJob && <CandidatesView candidates={filteredCandidates} job={selectedJob} statusFilter={statusFilter} search={search} onBack={() => go('jobs')} onStatusFilter={setStatusFilter} onSearch={setSearch} onOpen={(candidate) => void openCandidate(candidate)} onStatus={changeStatus} onRetryEvaluation={retryEvaluation} onSyncComplete={() => void loadData(true)} onSyncError={(text) => setToast({ kind: 'error', text })} />}
             {view === 'job-candidates' && !selectedJob && <EmptyPage icon={<BriefcaseBusiness />} title="职位不存在" text="该职位可能已被删除，请返回职位列表重新选择。" action="返回职位列表" onAction={() => go('jobs')} />}
             {view === 'candidate-detail' && selectedCandidate && <Suspense fallback={<PageLoading />}><CandidateDrawer candidate={selectedCandidate} job={selectedJob} onClose={() => go('job-candidates')} onStatus={changeStatus} onSyncUpdated={applyCandidateUpdate} /></Suspense>}
             {view === 'candidate-detail' && !selectedCandidate && <EmptyPage icon={<UserRound />} title="候选人不存在" text="请返回该职位的候选人列表重新选择。" action="返回候选人列表" onAction={() => go('job-candidates')} />}

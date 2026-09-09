@@ -40,6 +40,14 @@ describe('normalizeCandidatePayload', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/candidates/9/status', expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ status: 'passed' }) }))
   })
 
+  it('forces a new evaluation run for manual recovery', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ queued: 4 }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await api.retryCandidateEvaluation('9')).toEqual({ queued: 4 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/candidates/9/evaluate', expect.objectContaining({ method: 'POST', body: JSON.stringify({ force: true }) }))
+  })
+
   it('queues an interview evaluation without changing the manual decision', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ queued: 1 }) })
     vi.stubGlobal('fetch', fetchMock)
