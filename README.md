@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="web/public/brand/shicai-logo-32.png" width="64" height="64" alt="识才 Logo">
-</p>
-
 <h1 align="center">识才</h1>
 
 <p align="center">
