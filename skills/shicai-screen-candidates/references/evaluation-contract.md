@@ -2,15 +2,11 @@
 
 ## Job profile
 
-Use five non-overlapping dimensions in this order:
+Use exactly five non-overlapping dimensions dynamically derived from the current JD. Dimension names, IDs, order, and weights are job-specific rather than a fixed template. Each weight is between `0.1` and `0.35`, and the five weights sum to `1`.
 
-1. `hard_skills`, weight `0.27`
-2. `experience`, weight `0.19`
-3. `responsibilities`, weight `0.18`
-4. `gate`, weight `0.19`
-5. `tech_direction`, weight `0.17`
+Each dimension carries a unique stable lowercase `id`, job-specific `name`, `description`, `weight`, non-empty `requirements`, `criteria`, `keywords`, and `mustHave`. Criterion IDs are unique across the profile. Each criterion retains the JD quote and distinguishes `must` from `preferred`; only explicit JD text can set proficiency or minimum years. Do not invent requirements merely to fill five dimensions.
 
-Each dimension carries stable `id`, `name`, `description`, `weight`, `requirements`, `criteria`, `keywords`, and `mustHave`. Each criterion retains the JD quote and distinguishes `must` from `preferred`; only explicit JD text can set proficiency or minimum years.
+An agent-generated profile becomes active immediately. A recruiter may later save a validated manual profile as a new version. Manual saves record their source and time; re-evaluation may target no candidates, candidates without a final manual decision, or all candidates. Re-evaluation must preserve existing pass, hold, and reject decisions.
 
 ## Resume report
 

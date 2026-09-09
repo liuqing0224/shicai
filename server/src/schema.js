@@ -25,19 +25,30 @@ export const candidatePatchSchema = z.object({
 });
 
 const stringList = z.array(z.string());
-export const jobDimensionSchema = z.object({
+const criterionSchema = z.object({
+  id: z.string().regex(/^[a-z][a-z0-9_-]*$/, 'criterion id 必须是稳定的小写英文标识'),
+  text: z.string().min(1), priority: z.enum(['must', 'preferred']),
+  proficiency: z.string().nullable().optional(), minYears: z.number().min(0).nullable().optional(),
+  evidenceQuote: z.string().min(1),
+});
+const jobDimensionShape = {
   id: z.string().regex(/^[a-z][a-z0-9_-]*$/, '维度 id 必须是稳定的小写英文标识'),
   name: z.string().min(1),
   description: z.string().min(1),
-  weight: z.number().min(0.05).max(1),
+  weight: z.number().min(0.1).max(0.35),
   requirements: stringList.min(1),
-  criteria: z.array(z.object({
-    id: z.string().min(1), text: z.string().min(1), priority: z.enum(['must', 'preferred']),
-    proficiency: z.string().nullable().optional(), minYears: z.number().min(0).nullable().optional(),
-    evidenceQuote: z.string().min(1),
-  })).optional().default([]),
-  keywords: stringList,
+  criteria: z.array(criterionSchema).min(1),
+  keywords: stringList.min(1),
   mustHave: z.boolean(),
+};
+export const jobDimensionSchema = z.object(jobDimensionShape).superRefine((dimension, context) => {
+  const requirementSet = new Set(dimension.requirements);
+  const criterionTexts = dimension.criteria.map((criterion) => criterion.text);
+  if (new Set(criterionTexts).size !== criterionTexts.length
+    || criterionTexts.length !== requirementSet.size
+    || criterionTexts.some((criterion) => !requirementSet.has(criterion))) {
+    context.addIssue({ code: 'custom', path: ['criteria'], message: 'criteria 必须与 requirements 一一对应' });
+  }
 });
 
 export const jobProfileSchema = z.object({
@@ -46,12 +57,27 @@ export const jobProfileSchema = z.object({
   responsibilities: stringList,
   mustHaves: stringList,
   niceToHaves: stringList,
-  dimensions: z.array(jobDimensionSchema).min(2).max(8),
+  dimensions: z.array(jobDimensionSchema).length(5, '岗位画像必须恰好包含 5 个维度'),
 }).superRefine((value, context) => {
   const total = value.dimensions.reduce((sum, dimension) => sum + dimension.weight, 0);
   if (Math.abs(total - 1) > 0.001) context.addIssue({ code: 'custom', path: ['dimensions'], message: '岗位画像维度权重之和必须为 1' });
   const ids = value.dimensions.map((dimension) => dimension.id);
   if (new Set(ids).size !== ids.length) context.addIssue({ code: 'custom', path: ['dimensions'], message: '岗位画像维度 id 不得重复' });
+  const criterionIds = value.dimensions.flatMap((dimension) => dimension.criteria.map((criterion) => criterion.id));
+  if (new Set(criterionIds).size !== criterionIds.length) context.addIssue({ code: 'custom', path: ['dimensions'], message: '岗位画像 criterion id 不得重复' });
+});
+
+export const jobProfilePatchSchema = z.object({
+  jobProfile: z.object({
+    summary: z.string().min(1), seniority: z.string().min(1), responsibilities: stringList,
+    mustHaves: stringList, niceToHaves: stringList,
+    dimensions: z.array(z.object({
+      ...jobDimensionShape,
+      criteria: z.array(criterionSchema).optional().default([]),
+      keywords: stringList.optional().default([]),
+    })).length(5, '岗位画像必须恰好包含 5 个维度'),
+  }),
+  reevaluateStrategy: z.enum(['pending', 'none', 'all']).optional().default('pending'),
 });
 
 export const parsedProfileSchema = z.object({

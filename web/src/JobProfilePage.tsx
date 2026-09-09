@@ -1,16 +1,22 @@
-import { ArrowLeft, BriefcaseBusiness, CheckCircle2, FileSearch, Sparkles } from 'lucide-react'
+import { ArrowLeft, BriefcaseBusiness, CheckCircle2, FileSearch, Pencil, Sparkles } from 'lucide-react'
+import { useState } from 'react'
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { JobProfileEditor } from './JobProfileEditor'
 import { jobProfileChartData, jobProfileChartMax } from './jobProfileUtils'
-import type { Job, JobDimension } from './types'
+import type { Job, JobDimension, JobProfileUpdateResult } from './types'
 
-export function JobProfilePage({ job, onBack }: { job: Job; onBack: () => void }) {
+export function JobProfilePage({ job, onBack, onUpdated }: { job: Job; onBack: () => void; onUpdated: (job: Job) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [savedResult, setSavedResult] = useState<JobProfileUpdateResult['reevaluation'] | null>(null)
   const profile = job.jobProfile
   if (!profile) return <div className="page-content profile-page"><ProfileBack job={job} onBack={onBack} /><div className="profile-empty"><FileSearch size={26} /><h2>岗位画像尚未生成</h2><p>职位已保留原始 JD，画像生成完成后会在这里展示评估维度和权重。</p></div></div>
+  if (editing) return <div className="page-content profile-page"><ProfileBack job={job} onBack={onBack} /><JobProfileEditor job={job} profile={profile} onCancel={() => setEditing(false)} onSaved={(result) => { onUpdated({ ...result.job, id: String(result.job.id) }); setSavedResult(result.reevaluation); setEditing(false) }} /></div>
   const chartData = jobProfileChartData(profile)
   const chartMax = jobProfileChartMax(profile)
   return <div className="page-content profile-page">
     <ProfileBack job={job} onBack={onBack} />
-    <section className="profile-intro"><div><span className="seniority-tag">{profile.seniority}</span><h2>岗位画像概览</h2><p>{profile.summary}</p></div><div className="profile-chart-wrap"><div className="profile-radar" aria-label="岗位画像维度权重雷达图"><ResponsiveContainer width="100%" height="100%"><RadarChart data={chartData} outerRadius="68%"><PolarGrid stroke="#dfe2de" /><PolarAngleAxis dataKey="name" tick={{ fill: '#535b56', fontSize: 11 }} /><PolarRadiusAxis domain={[0, chartMax]} tickCount={4} tick={{ fill: '#8a908c', fontSize: 9 }} axisLine={false} /><Radar name="权重" dataKey="weight" stroke="#d94418" fill="#ef7643" fillOpacity={0.38} strokeWidth={2} /><Tooltip formatter={(value) => [`${value}%`, '权重']} /></RadarChart></ResponsiveContainer></div><div className="radar-legend">{chartData.map((item) => <span key={item.id}><i />{item.name}<b>{item.weight}%</b></span>)}</div></div></section>
+    {savedResult && <div className="profile-save-result"><CheckCircle2 size={17} /><span><strong>岗位画像已更新</strong>共检查 {savedResult.candidates} 位候选人，已安排重评 {savedResult.queued} 位，跳过 {savedResult.skipped} 位；人工决策状态保持不变。</span></div>}
+    <section className="profile-intro"><div><span className="seniority-tag">{profile.seniority}</span><h2>岗位画像概览</h2><p>{profile.summary}</p><div className="profile-agent-note"><Sparkles size={14} />此画像由 Agent 根据 JD 动态生成并直接用于评估，您可随时事后校准。</div><button className="secondary-button profile-edit-button" onClick={() => { setSavedResult(null); setEditing(true) }}><Pencil size={15} />编辑画像</button></div><div className="profile-chart-wrap"><div className="profile-radar" aria-label="岗位画像维度权重雷达图"><ResponsiveContainer width="100%" height="100%"><RadarChart data={chartData} outerRadius="68%"><PolarGrid stroke="#dfe2de" /><PolarAngleAxis dataKey="name" tick={{ fill: '#535b56', fontSize: 11 }} /><PolarRadiusAxis domain={[0, chartMax]} tickCount={4} tick={{ fill: '#8a908c', fontSize: 9 }} axisLine={false} /><Radar name="权重" dataKey="weight" stroke="#d94418" fill="#ef7643" fillOpacity={0.38} strokeWidth={2} /><Tooltip formatter={(value) => [`${value}%`, '权重']} /></RadarChart></ResponsiveContainer></div><div className="radar-legend">{chartData.map((item) => <span key={item.id}><i />{item.name}<b>{item.weight}%</b></span>)}</div></div></section>
     <section className="profile-criteria"><ProfileList icon={<BriefcaseBusiness size={15} />} title="主要职责" items={profile.responsibilities} /><ProfileList icon={<CheckCircle2 size={15} />} title="必须条件" items={profile.mustHaves} tone="must" /><ProfileList icon={<Sparkles size={15} />} title="加分条件" items={profile.niceToHaves} /></section>
     <section className="profile-dimension-section"><div className="section-heading"><h2>评估维度</h2><p>维度权重之和为 100%，评估结果按以下标准对齐。</p></div><div className="profile-dimension-grid">{profile.dimensions.map((dimension) => <DimensionDetail key={dimension.id} dimension={dimension} />)}</div></section>
   </div>

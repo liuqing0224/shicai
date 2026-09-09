@@ -51,8 +51,12 @@ describe('面试记录评价', () => {
     assert.equal(after.interviewTranscript, transcript);
     assert.ok(after.interviewEvaluationCreatedAt);
     assert.deepEqual(after.interviewEvaluation.dimensions.map(({ id }) => id), job.jobProfile.dimensions.map(({ id }) => id));
-    assert.equal(after.interviewEvaluation.assessedCoverageWeight, 0.46);
-    assert.equal(after.interviewEvaluation.weightedScore, 3.17);
+    const expectedCoverage = Math.round(job.jobProfile.dimensions.slice(0, 2)
+      .reduce((sum, dimension) => sum + dimension.weight, 0) * 10_000) / 10_000;
+    const expectedScore = Math.round((4 * job.jobProfile.dimensions[0].weight + 2 * job.jobProfile.dimensions[1].weight)
+      / expectedCoverage * 100) / 100;
+    assert.equal(after.interviewEvaluation.assessedCoverageWeight, expectedCoverage);
+    assert.equal(after.interviewEvaluation.weightedScore, expectedScore);
     assert.deepEqual(after.interviewEvaluation.notAssessed, job.jobProfile.dimensions.slice(2).map(({ name }) => name));
     assert.equal(after.tasks.at(-1).stage, 'interview-evaluate');
     assert.equal(after.tasks.at(-1).status, 'completed');

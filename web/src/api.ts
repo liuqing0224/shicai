@@ -1,4 +1,4 @@
-import type { Candidate, CandidateStatus, CollectResult, DecisionSyncResult, Job } from './types'
+import type { Candidate, CandidateStatus, CollectResult, DecisionSyncResult, Job, JobProfile, JobProfileUpdateResult, ReevaluateStrategy } from './types'
 
 type RawCandidate = Omit<Partial<Candidate>, 'id' | 'status'> & { id: string | number; positionId?: string | number; status?: string; grade?: string; report?: Partial<Candidate> }
 const statusAliases: Record<string, CandidateStatus> = { evaluating: 'processing', evaluated: 'reviewed', shortlisted: 'passed' }
@@ -60,6 +60,13 @@ export const api = {
   },
   async collect(jobId: string) {
     const result = await request<CollectResult | { data: CollectResult }>(`/jobs/${jobId}/collect`, { method: 'POST' })
+    return 'data' in result ? result.data : result
+  },
+  async updateJobProfile(jobId: string, jobProfile: JobProfile, reevaluateStrategy: ReevaluateStrategy) {
+    const result = await request<JobProfileUpdateResult | { data: JobProfileUpdateResult }>(`/jobs/${jobId}/profile`, {
+      method: 'PATCH',
+      body: JSON.stringify({ jobProfile, reevaluateStrategy }),
+    })
     return 'data' in result ? result.data : result
   },
   async retryCandidateSync(id: string) {

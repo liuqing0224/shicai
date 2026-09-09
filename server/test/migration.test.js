@@ -27,6 +27,8 @@ test('旧 jobs 表自动迁移岗位画像字段', () => {
   assert.ok(columns.has('job_profile'));
   assert.ok(columns.has('job_profile_version'));
   assert.ok(columns.has('job_profile_analyzed_at'));
+  assert.ok(columns.has('job_profile_source'));
+  assert.ok(columns.has('job_profile_updated_at'));
   const candidateColumns = new Set(migrated.prepare('PRAGMA table_info(candidates)').all().map((column) => column.name));
   assert.ok(candidateColumns.has('interview_plan'));
   assert.ok(candidateColumns.has('interview_plan_created_at'));

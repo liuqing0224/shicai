@@ -26,7 +26,18 @@ export interface JobDimension {
   description: string
   weight: number
   requirements: string[]
+  criteria?: JobCriterion[]
+  keywords?: string[]
   mustHave: boolean
+}
+
+export interface JobCriterion {
+  id: string
+  text: string
+  priority: 'must' | 'preferred'
+  proficiency?: string | null
+  minYears?: number | null
+  evidenceQuote: string
 }
 
 export interface JobProfile {
@@ -36,6 +47,13 @@ export interface JobProfile {
   mustHaves: string[]
   niceToHaves: string[]
   dimensions: JobDimension[]
+}
+
+export type ReevaluateStrategy = 'pending' | 'none' | 'all'
+
+export interface JobProfileUpdateResult {
+  job: Job
+  reevaluation: { candidates: number; queued: number; skipped: number }
 }
 
 export type RequirementMatchStatus = 'met' | 'partial' | 'not_met' | 'unknown'

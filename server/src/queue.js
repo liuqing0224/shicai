@@ -43,18 +43,24 @@ export class EvaluationQueue extends EventEmitter {
     return retryable.length;
   }
 
-  enqueue(candidateId, { force = false } = {}) {
-    const candidate = this.db.prepare('SELECT id FROM candidates WHERE id = ?').get(candidateId);
+  enqueue(candidateId, { force = false, preserveDecision = false } = {}) {
+    const candidate = this.db.prepare('SELECT id,status FROM candidates WHERE id = ?').get(candidateId);
     if (!candidate) throw Object.assign(new Error('候选人不存在'), { statusCode: 404 });
     const pending = this.db.prepare("SELECT COUNT(*) count FROM tasks WHERE candidate_id = ? AND status IN ('queued','running')").get(candidateId).count;
     if (pending && !force) return 0;
     const now = new Date().toISOString();
-    const insert = this.db.prepare('INSERT INTO tasks (id, candidate_id, stage, status, attempt, created_at) VALUES (?, ?, ?, ?, 0, ?)');
+    const preservedStatus = preserveDecision && ['shortlisted', 'hold', 'rejected'].includes(candidate.status) ? candidate.status : null;
+    const input = preservedStatus ? json({ preserveDecisionStatus: preservedStatus }) : null;
+    const insert = this.db.prepare('INSERT INTO tasks (id,candidate_id,stage,status,attempt,input,created_at) VALUES (?,?,?,?,0,?,?)');
     const transaction = this.db.transaction(() => {
       if (force) this.db.prepare("UPDATE tasks SET status = 'cancelled', completed_at = ? WHERE candidate_id = ? AND status IN ('queued','running')").run(now, candidateId);
-      for (const stage of stages) insert.run(randomUUID(), candidateId, stage, 'queued', now);
+      for (const stage of stages) insert.run(randomUUID(), candidateId, stage, 'queued', input, now);
       if (force) {
-        this.db.prepare("UPDATE candidates SET status='pending',parsed_profile=NULL,report=NULL,interview_plan=NULL,interview_plan_created_at=NULL,interview_evaluation=NULL,interview_evaluation_created_at=NULL,error=NULL,updated_at=? WHERE id=?").run(now, candidateId);
+        if (preservedStatus) {
+          this.db.prepare('UPDATE candidates SET parsed_profile=NULL,report=NULL,interview_plan=NULL,interview_plan_created_at=NULL,interview_evaluation=NULL,interview_evaluation_created_at=NULL,error=NULL,updated_at=? WHERE id=?').run(now, candidateId);
+        } else {
+          this.db.prepare("UPDATE candidates SET status='pending',parsed_profile=NULL,report=NULL,interview_plan=NULL,interview_plan_created_at=NULL,interview_evaluation=NULL,interview_evaluation_created_at=NULL,error=NULL,updated_at=? WHERE id=?").run(now, candidateId);
+        }
       } else {
         this.db.prepare("UPDATE candidates SET status='pending',error=NULL,updated_at=? WHERE id=?").run(now, candidateId);
       }
@@ -155,10 +161,11 @@ export class EvaluationQueue extends EventEmitter {
     ).get(task.candidateId, task.createdAt).count === 0;
     const standaloneEvaluation = task.stage === 'interview-evaluate';
     const evaluationInput = standaloneEvaluation ? task.input : null;
+    const preservedStatus = task.input?.preserveDecisionStatus ?? null;
     const candidate = mapCandidate(this.db.prepare('SELECT * FROM candidates WHERE id = ?').get(task.candidateId));
     let job = mapJob(this.db.prepare('SELECT * FROM jobs WHERE id = ?').get(candidate.positionId));
     const now = new Date().toISOString();
-    if (!standaloneInterview && !standaloneEvaluation) this.db.prepare("UPDATE candidates SET status = 'evaluating', error = NULL, updated_at = ? WHERE id = ?").run(now, candidate.id);
+    if (!standaloneInterview && !standaloneEvaluation && !preservedStatus) this.db.prepare("UPDATE candidates SET status = 'evaluating', error = NULL, updated_at = ? WHERE id = ?").run(now, candidate.id);
     try {
       let output;
       if (task.stage === 'parse') output = await this.provider.parse({ candidate, job });
@@ -191,7 +198,15 @@ export class EvaluationQueue extends EventEmitter {
         if (task.stage === 'evaluate') this.db.prepare('UPDATE candidates SET report = ?, updated_at = ? WHERE id = ?').run(json(output), completedAt, candidate.id);
         if (task.stage === 'review') this.db.prepare('UPDATE candidates SET report = ?, updated_at = ? WHERE id = ?').run(json(output), completedAt, candidate.id);
         if (task.stage === 'interview' && standaloneInterview) this.db.prepare('UPDATE candidates SET interview_plan = ?, interview_plan_created_at = ?, error = NULL, updated_at = ? WHERE id = ?').run(json(output), completedAt, completedAt, candidate.id);
-        if (task.stage === 'interview' && !standaloneInterview) this.db.prepare("UPDATE candidates SET interview_plan = ?, interview_plan_created_at = ?, status = 'evaluated', error = NULL, updated_at = ? WHERE id = ?").run(json(output), completedAt, completedAt, candidate.id);
+        if (task.stage === 'interview' && !standaloneInterview) {
+          if (preservedStatus) {
+            this.db.prepare('UPDATE candidates SET interview_plan=?,interview_plan_created_at=?,error=NULL,updated_at=? WHERE id=?')
+              .run(json(output), completedAt, completedAt, candidate.id);
+          } else {
+            this.db.prepare("UPDATE candidates SET interview_plan=?,interview_plan_created_at=?,status='evaluated',error=NULL,updated_at=? WHERE id=?")
+              .run(json(output), completedAt, completedAt, candidate.id);
+          }
+        }
         if (task.stage === 'interview-evaluate') this.db.prepare('UPDATE candidates SET interview_evaluation=?,interview_evaluation_created_at=?,updated_at=? WHERE id=? AND interview_evaluation_generation=?')
           .run(json(output), completedAt, completedAt, candidate.id, evaluationInput.generation);
       });
@@ -218,6 +233,10 @@ export class EvaluationQueue extends EventEmitter {
         if (!failed.changes) return;
         this.db.prepare("UPDATE tasks SET status = 'cancelled', error = ?, completed_at = ? WHERE candidate_id = ? AND status = 'queued'").run(`前置阶段 ${task.stage} 失败`, failedAt, candidate.id);
         if (standaloneEvaluation) return;
+        if (preservedStatus) {
+          this.db.prepare('UPDATE candidates SET error=?,updated_at=? WHERE id=?').run(message, failedAt, candidate.id);
+          return;
+        }
         if (standaloneInterview) this.db.prepare('UPDATE candidates SET error = ?, updated_at = ? WHERE id = ?').run(message, failedAt, candidate.id);
         else this.db.prepare("UPDATE candidates SET status = 'failed', error = ?, updated_at = ? WHERE id = ?").run(message, failedAt, candidate.id);
       });

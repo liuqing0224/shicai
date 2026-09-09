@@ -26,4 +26,6 @@
 }
 ```
 
-固定拆解为五个互不重叠的维度，按以下顺序和权重：`hard_skills` 0.27、`experience` 0.19、`responsibilities` 0.18、`gate` 0.19、`tech_direction` 0.17。每条要求都放入 criteria，区分 must/preferred，只有 JD 明确给出时才填 proficiency 和 minYears，并保留 evidenceQuote。后续候选人评估必须按这些维度逐项输出。
+必须根据当前 JD 的岗位目标、核心职责、业务场景和能力要求，动态归纳出恰好五个互不重叠的维度。维度名称、ID、顺序和权重不得套用固定模板；不同岗位应体现明显不同的能力结构。权重按 JD 的强调程度动态分配，单项不少于 0.1、不高于 0.35，五项之和严格为 1。
+
+每个维度至少包含一条可核对要求和一条 criterion。维度 ID 与 criterion ID 使用稳定、唯一的小写英文标识；同一 JD 要求只归入一个主要维度。每条要求都放入 criteria，区分 must/preferred，只有 JD 明确给出时才填 proficiency 和 minYears，并保留 evidenceQuote。禁止为了凑满五维添加 JD 未表达的硬性门槛；JD 信息不足时可以拆分职责、交付、协作或基础适配方向，但仍需使用符合该岗位的具体名称。后续候选人评估必须按这些动态维度逐项输出。

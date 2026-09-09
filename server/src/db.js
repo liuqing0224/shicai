@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   job_profile TEXT,
   job_profile_version INTEGER NOT NULL DEFAULT 0,
   job_profile_analyzed_at TEXT,
+  job_profile_source TEXT,
+  job_profile_updated_at TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -77,6 +79,8 @@ export function createDatabase(filename) {
   if (!jobColumns.has('job_profile')) db.exec('ALTER TABLE jobs ADD COLUMN job_profile TEXT');
   if (!jobColumns.has('job_profile_version')) db.exec('ALTER TABLE jobs ADD COLUMN job_profile_version INTEGER NOT NULL DEFAULT 0');
   if (!jobColumns.has('job_profile_analyzed_at')) db.exec('ALTER TABLE jobs ADD COLUMN job_profile_analyzed_at TEXT');
+  if (!jobColumns.has('job_profile_source')) db.exec('ALTER TABLE jobs ADD COLUMN job_profile_source TEXT');
+  if (!jobColumns.has('job_profile_updated_at')) db.exec('ALTER TABLE jobs ADD COLUMN job_profile_updated_at TEXT');
   const candidateColumns = new Set(db.prepare('PRAGMA table_info(candidates)').all().map((column) => column.name));
   if (!candidateColumns.has('interview_plan')) db.exec('ALTER TABLE candidates ADD COLUMN interview_plan TEXT');
   if (!candidateColumns.has('interview_plan_created_at')) db.exec('ALTER TABLE candidates ADD COLUMN interview_plan_created_at TEXT');
@@ -108,6 +112,8 @@ export function mapJob(row) {
     jd: row.jd, jdSourceUrl: row.jd_source_url ?? null,
     jobProfile: parseJson(row.job_profile), jobProfileVersion: row.job_profile_version ?? 0,
     jobProfileAnalyzedAt: row.job_profile_analyzed_at ?? null,
+    jobProfileSource: row.job_profile_source ?? null,
+    jobProfileUpdatedAt: row.job_profile_updated_at ?? row.job_profile_analyzed_at ?? null,
     status: row.status, createdAt: row.created_at, updatedAt: row.updated_at,
   };
 }

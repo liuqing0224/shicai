@@ -10,6 +10,7 @@ import { loadConfig } from './config.js';
 import { createProvider } from './providers/index.js';
 import { EvaluationQueue } from './queue.js';
 import { generateJobProfile } from './job-profile.js';
+import { registerJobProfileRoutes } from './job-profile-routes.js';
 import { DecisionSync } from './decision-sync.js';
 import { fetchLarkDocument, isLarkDocumentUrl } from './lark.js';
 import { LarkHireClient } from './lark-hire.js';
@@ -54,8 +55,11 @@ export function createApp(options = {}) {
     const resolved = await resolveJd(value.jd);
     const record = { id: randomUUID(), ...value, ...resolved, createdAt: now(), updatedAt: now(), jobProfileVersion: 0 };
     const analyzed = await analyzeJob(record, false);
-    Object.assign(record, { jobProfile: analyzed.profile, jobProfileVersion: analyzed.version, jobProfileAnalyzedAt: analyzed.analyzedAt });
-    db.prepare('INSERT INTO jobs (id,name,department,location,jd,jd_source_url,job_profile,job_profile_version,job_profile_analyzed_at,status,created_at,updated_at) VALUES (@id,@name,@department,@location,@jd,@jdSourceUrl,@jobProfileJson,@jobProfileVersion,@jobProfileAnalyzedAt,@status,@createdAt,@updatedAt)')
+    Object.assign(record, { jobProfile: analyzed.profile, jobProfileVersion: analyzed.version, jobProfileAnalyzedAt: analyzed.analyzedAt, jobProfileSource: analyzed.source, jobProfileUpdatedAt: analyzed.updatedAt });
+    db.prepare(`INSERT INTO jobs (id,name,department,location,jd,jd_source_url,job_profile,job_profile_version,
+      job_profile_analyzed_at,job_profile_source,job_profile_updated_at,status,created_at,updated_at)
+      VALUES (@id,@name,@department,@location,@jd,@jdSourceUrl,@jobProfileJson,@jobProfileVersion,
+      @jobProfileAnalyzedAt,@jobProfileSource,@jobProfileUpdatedAt,@status,@createdAt,@updatedAt)`)
       .run({ ...record, jobProfileJson: JSON.stringify(record.jobProfile) });
     res.status(201).json(record);
   };
@@ -73,10 +77,11 @@ export function createApp(options = {}) {
     const updated = { ...current, ...provided, ...resolved, updatedAt: now() };
     if (value.jd !== undefined) {
       const analyzed = await analyzeJob(updated, false);
-      Object.assign(updated, { jobProfile: analyzed.profile, jobProfileVersion: analyzed.version, jobProfileAnalyzedAt: analyzed.analyzedAt });
+      Object.assign(updated, { jobProfile: analyzed.profile, jobProfileVersion: analyzed.version, jobProfileAnalyzedAt: analyzed.analyzedAt, jobProfileSource: analyzed.source, jobProfileUpdatedAt: analyzed.updatedAt });
     }
     db.prepare(`UPDATE jobs SET name=@name,department=@department,location=@location,jd=@jd,jd_source_url=@jdSourceUrl,
       job_profile=@jobProfileJson,job_profile_version=@jobProfileVersion,job_profile_analyzed_at=@jobProfileAnalyzedAt,
+      job_profile_source=@jobProfileSource,job_profile_updated_at=@jobProfileUpdatedAt,
       status=@status,updated_at=@updatedAt WHERE id=@id`)
       .run({ ...updated, jobProfileJson: JSON.stringify(updated.jobProfile) });
     res.json(mapJob(db.prepare('SELECT * FROM jobs WHERE id = ?').get(updated.id)));
@@ -100,6 +105,7 @@ export function createApp(options = {}) {
   };
   app.post('/api/jobs/:id/analyze', rebuildJobProfile);
   app.post('/api/positions/:id/analyze', rebuildJobProfile);
+  registerJobProfileRoutes({ app, db, queue, notFound });
 
   app.get('/api/candidates', (req, res) => {
     const where = []; const params = {};

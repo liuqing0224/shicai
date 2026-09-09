@@ -8,32 +8,69 @@ function keywords(text) {
 }
 
 export function analyzeJobMock({ job }) {
-    const tokens = keywords(job.jd);
-    const hasExperience = /(\d+)\s*年|经验/.test(job.jd);
-    const evidence = pickEvidence(job.jd);
-    const makeDimension = (id, name, description, weight, requirements, dimensionKeywords, mustHave) => ({
-      id, name, description, weight, requirements,
-      criteria: requirements.map((requirement, index) => ({
-        id: `${id}_${index + 1}`, text: requirement, priority: mustHave ? 'must' : 'preferred',
-        proficiency: null, minYears: id === 'experience' ? Number(job.jd.match(/(\d+)\s*年/)?.[1] ?? 0) || null : null,
-        evidenceQuote: evidence.find((line) => line.includes(requirement)) ?? requirement,
-      })),
-      keywords: dimensionKeywords, mustHave,
-    });
+  const text = `${job.name} ${job.jd}`;
+  const evidence = pickEvidence(job.jd);
+  const tokens = keywords(job.jd);
+  const families = {
+    training: [
+      ['ai_knowledge', 'AI 产品与技术理解', '理解岗位涉及的 AI 产品、原理与边界', /AI|大模型|Agent|RAG|技术/gi],
+      ['course_design', '课程设计与授课', '把专业知识转化为课程并有效授课', /培训|课程|授课|讲师/gi],
+      ['business_enablement', '业务场景赋能', '将培训内容用于销售或客户业务场景', /销售|客户|赋能|场景/gi],
+      ['training_delivery', '培训项目交付', '规划、实施并复盘培训项目', /项目|交付|运营|复盘|效果/gi],
+      ['stakeholder_influence', '沟通影响与协作', '推动跨团队共识与行动', /沟通|协作|推动|团队/gi],
+    ],
+    sales: [
+      ['customer_development', '客户开发', '识别并触达目标客户', /客户|开发|拓展|线索/gi],
+      ['opportunity_conversion', '商机转化', '推进商机并达成销售结果', /商机|销售|签约|转化/gi],
+      ['industry_solution', '行业与方案理解', '理解行业并形成客户方案', /行业|方案|产品|需求/gi],
+      ['target_delivery', '目标与经营结果', '管理目标、过程与经营结果', /目标|业绩|回款|结果/gi],
+      ['team_collaboration', '团队协作与管理', '协同或带领团队完成目标', /团队|管理|协作|跨部门/gi],
+    ],
+    product: [
+      ['user_insight', '用户与市场洞察', '识别用户、市场与业务问题', /用户|市场|调研|洞察/gi],
+      ['product_planning', '产品规划', '制定产品方向与优先级', /规划|路线图|产品|战略/gi],
+      ['requirements_design', '需求与方案设计', '拆解需求并形成可交付方案', /需求|原型|方案|设计/gi],
+      ['delivery_collaboration', '协作推动与交付', '跨团队推动产品落地', /协作|研发|交付|上线/gi],
+      ['data_business_judgment', '数据与商业判断', '用数据验证产品和商业结果', /数据|指标|商业|增长/gi],
+    ],
+    engineering: [
+      ['core_engineering', '核心工程能力', '掌握 JD 所需的语言、框架与工程方法', /Node|Java|Python|Go|JavaScript|TypeScript|工程|开发/gi],
+      ['system_design', '系统与接口设计', '设计可维护的系统、数据与接口', /架构|系统|API|接口|数据库|SQLite|分布式/gi],
+      ['quality_reliability', '质量与可靠性', '保障测试、性能、安全与稳定性', /测试|质量|性能|安全|稳定|可靠/gi],
+      ['project_delivery', '项目交付与问题解决', '在真实项目中完成交付并解决复杂问题', /项目|交付|经验|问题|成果/gi],
+      ['business_collaboration', '业务理解与协作', '理解业务目标并有效协作', /业务|沟通|协作|产品|团队/gi],
+    ],
+  };
+  const family = /培训|课程|授课|讲师/.test(text) ? families.training
+    : /销售|商机|客户开发/.test(text) ? families.sales
+      : /产品经理|用户需求|产品规划/.test(text) ? families.product : families.engineering;
+  const scores = family.map(([, , , pattern], index) => 18 + (4 - index) + (text.match(pattern)?.length ?? 0) * 2);
+  const scoreTotal = scores.reduce((sum, score) => sum + score, 0);
+  const weights = scores.map((score) => Number((score / scoreTotal).toFixed(2)));
+  weights[4] = Number((1 - weights.slice(0, 4).reduce((sum, weight) => sum + weight, 0)).toFixed(2));
+  const dimensions = family.map(([id, name, description, pattern], index) => {
+    const matchedEvidence = evidence.filter((line) => new RegExp(pattern.source, 'i').test(line));
+    const requirements = matchedEvidence.length ? matchedEvidence : [evidence[index % Math.max(evidence.length, 1)] ?? `${job.name}岗位职责`];
+    const dimensionKeywords = [...new Set([...keywords(requirements.join(' ')), ...tokens.slice(index, index + 3)])].slice(0, 10);
+    const mustHave = index < 2 || matchedEvidence.length > 0;
     return {
-      summary: `${job.name}岗位画像，根据 JD 拆解为五个可循证评估维度。`,
-      seniority: /(leader|主管|总监|负责人)/i.test(job.jd) ? '管理岗' : /(高级|资深|senior)/i.test(job.jd) ? '高级' : '未明确',
-      responsibilities: pickEvidence(job.jd).slice(0, 4),
-      mustHaves: tokens.slice(0, 5),
-      niceToHaves: tokens.slice(5, 8),
-      dimensions: [
-        makeDimension('hard_skills', '硬技能', '评估 JD 明确要求的工具与专业能力', 0.27, tokens.slice(0, 5).length ? tokens.slice(0, 5) : ['JD 所列核心技能'], tokens.slice(0, 8), true),
-        makeDimension('experience', '相关经验', '评估工作年限及相关项目深度', 0.19, [hasExperience ? 'JD 所要求的相关年限或经验' : '可验证的相关项目经验'], ['经验', '项目', '成果'], hasExperience),
-        makeDimension('responsibilities', '职责契合', '评估过往职责与岗位交付目标的契合度', 0.18, evidence.slice(0, 3).length ? evidence.slice(0, 3) : ['岗位主要职责'], tokens, false),
-        makeDimension('gate', '硬性门槛', '核对 JD 明确标注的必须条件', 0.19, tokens.slice(0, 2).length ? tokens.slice(0, 2) : ['JD 明确必须项'], tokens.slice(0, 5), true),
-        makeDimension('tech_direction', '技术方向', '评估候选人技术积累与岗位发展方向的一致性', 0.17, tokens.slice(2, 5).length ? tokens.slice(2, 5) : ['岗位技术方向'], tokens.slice(2, 10), false),
-      ],
+      id, name, description, weight: weights[index], requirements,
+      criteria: requirements.map((requirement, criterionIndex) => ({
+        id: `${id}_criterion_${criterionIndex + 1}`, text: requirement, priority: mustHave ? 'must' : 'preferred',
+        proficiency: null, minYears: Number(requirement.match(/(\d+)\s*年/)?.[1] ?? 0) || null,
+        evidenceQuote: requirement,
+      })),
+      keywords: dimensionKeywords.length ? dimensionKeywords : [name], mustHave,
     };
+  });
+  return {
+    summary: `${job.name}岗位画像，根据 JD 动态拆解为五个可循证评估维度。`,
+    seniority: /(leader|主管|总监|负责人)/i.test(job.jd) ? '管理岗' : /(高级|资深|senior)/i.test(job.jd) ? '高级' : '未明确',
+    responsibilities: evidence.slice(0, 4),
+    mustHaves: dimensions.filter((dimension) => dimension.mustHave).flatMap((dimension) => dimension.requirements),
+    niceToHaves: dimensions.filter((dimension) => !dimension.mustHave).flatMap((dimension) => dimension.requirements),
+    dimensions,
+  };
 }
 
 export function designInterviewMock({ candidate, jobProfile, report }) {

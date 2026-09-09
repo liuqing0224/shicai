@@ -170,10 +170,12 @@ describe('resume evaluator API', () => {
     const job = await createJob();
     assert.equal(job.jobProfileVersion, 1);
     assert.equal(job.jobProfile.dimensions.length, 5);
-    assert.equal(job.jobProfile.dimensions.reduce((sum, dimension) => sum + dimension.weight, 0), 1);
+    assert.ok(Math.abs(job.jobProfile.dimensions.reduce((sum, dimension) => sum + dimension.weight, 0) - 1) < 0.001);
     assert.deepEqual(job.jobProfile.dimensions.map((dimension) => dimension.id), [
-      'hard_skills', 'experience', 'responsibilities', 'gate', 'tech_direction',
+      'core_engineering', 'system_design', 'quality_reliability', 'project_delivery', 'business_collaboration',
     ]);
+    assert.equal(job.jobProfileSource, 'agent');
+    assert.ok(job.jobProfileUpdatedAt);
     const rebuilt = await request(api.app).post(`/api/jobs/${job.id}/analyze`).expect(200);
     assert.equal(rebuilt.body.jobProfileVersion, 2);
     assert.ok(rebuilt.body.jobProfileAnalyzedAt);

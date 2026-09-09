@@ -48,6 +48,18 @@ describe('normalizeCandidatePayload', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/candidates/9/evaluate', expect.objectContaining({ method: 'POST', body: JSON.stringify({ force: true }) }))
   })
 
+  it('updates a job profile with the requested reevaluation strategy', async () => {
+    const jobProfile = { summary: '动态画像', seniority: '高级', responsibilities: [], mustHaves: [], niceToHaves: [], dimensions: [] }
+    const payload = { job: { id: '3', name: '培训官', jd: 'JD', jobProfile }, reevaluation: { candidates: 5, queued: 3, skipped: 2 } }
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => payload })
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await api.updateJobProfile('3', jobProfile, 'pending')).toEqual(payload)
+    expect(fetchMock).toHaveBeenCalledWith('/api/jobs/3/profile', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ jobProfile, reevaluateStrategy: 'pending' }),
+    }))
+  })
+
   it('queues an interview evaluation without changing the manual decision', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ queued: 1 }) })
     vi.stubGlobal('fetch', fetchMock)
